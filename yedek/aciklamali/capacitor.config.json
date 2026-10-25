@@ -1,0 +1,14 @@
+{
+  "appId": "com.hatirlaticilarim.app",
+  "appName": "Hatırlatıcılarım",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#f4f7fb"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "presentationOptions": ["alert", "sound", "badge"]
+    }
+  }
+}

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Hatırlatıcılarım" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="./app-icon.svg" />
+    <title>Hatırlatıcılarım</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Günlük planlayıcınız</p>
+          <h1>Hatırlatıcılarım</h1>
+          <p class="app-intro">Planınızı oluşturun, önemli zamanları takip edin. Kayıtlarınız bu cihazda saklanır.</p>
+        </div>
+        <p id="today-label" class="today-label"></p>
+      </header>
+
+      <details class="app-menu" id="app-menu">
+        <summary class="app-menu-summary">
+          <span class="app-menu-icon" aria-hidden="true">☰</span>
+          <span class="app-menu-label">Menü</span>
+          <span class="app-menu-hint" id="app-menu-hint">Bölüm seçin</span>
+          <span class="category-chevron" aria-hidden="true"></span>
+        </summary>
+        <nav class="category-menu" aria-label="Uygulama bölümleri">
+          <details class="menu-group">
+            <summary>Planlama</summary>
+            <button class="menu-category" type="button" data-open-page="overview" aria-current="page">
+              <span class="category-icon" aria-hidden="true">◷</span>
+              <span class="category-summary">
+                <strong>Genel Bakış</strong>
+                <span>Özet ve yaklaşan hatırlatmalar</span>
+              </span>
+            </button>
+            <button class="menu-category" type="button" data-open-page="reminders">
+              <span class="category-icon" aria-hidden="true">✓</span>
+              <span class="category-summary">
+                <strong>Hatırlatmalar</strong>
+                <span>Ekle, ara ve düzenle</span>
+              </span>
+            </button>
+          </details>
+
+          <details class="menu-group">
+            <summary>Kişiselleştirme</summary>
+            <button class="menu-category" type="button" data-open-page="alarm">
+              <span class="category-icon" aria-hidden="true">♫</span>
+              <span class="category-summary">
+                <strong>Alarm ve Ses</strong>
+                <span>Sesli alarm ve ses düzeyi</span>
+              </span>
+            </button>
+            <button class="menu-category" type="button" data-open-page="appearance">
+              <span class="category-icon" aria-hidden="true">⚙</span>
+              <span class="category-summary">
+                <strong>Görünüm ve Bildirimler</strong>
+                <span>Tema ve hatırlatma bildirimleri</span>
+              </span>
+            </button>
+          </details>
+        </nav>
+      </details>
+
+      <main id="app-content">
+        <section class="page-view category-content" data-page-panel="overview" aria-labelledby="overview-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Durum özeti</p>
+              <h2 id="overview-title">Genel Bakış</h2>
+            </div>
+            <button id="quick-add-btn" class="primary-btn" type="button">Yeni hatırlatma oluştur</button>
+          </div>
+          <div class="stats" id="stats"></div>
+          <section class="panel overview-panel" aria-labelledby="overview-reminders-title">
+            <div class="list-header">
+              <div>
+                <p class="eyebrow">Sıradaki işler</p>
+                <h2 id="overview-reminders-title">Yaklaşan hatırlatmalar</h2>
+              </div>
+              <button class="text-btn" type="button" data-open-page="reminders">Tüm hatırlatmaları gör</button>
+            </div>
+            <ul id="overview-list" class="reminder-list"></ul>
+          </section>
+        </section>
+
+        <section class="page-view category-content" data-page-panel="reminders" aria-labelledby="reminders-page-title" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Ekle, bul ve düzenle</p>
+              <h2 id="reminders-page-title">Hatırlatmalar</h2>
+            </div>
+          </div>
+          <div class="layout">
+            <section class="panel form-panel">
+              <h3 id="form-title">Yeni hatırlatma</h3>
+              <form id="reminder-form">
+                <label>
+                  Başlık
+                  <input id="title" name="title" type="text" maxlength="80" placeholder="Örn. Toplantı hatırlatması" required />
+                </label>
+                <label>
+                  Not
+                  <textarea id="details" name="details" rows="3" maxlength="200" placeholder="Ek açıklama yazın..."></textarea>
+                </label>
+                <div class="two-columns">
+                  <label>
+                    Tarih
+                    <input id="date" name="date" type="date" required />
+                  </label>
+                  <label>
+                    Saat
+                    <input id="time" name="time" type="time" required />
+                  </label>
+                </div>
+                <label>
+                  Tekrarlama
+                  <select id="recurrence" name="recurrence">
+                    <option value="none">Tekrarlanmasın</option>
+                    <option value="daily">Her gün</option>
+                    <option value="weekdays">Hafta içi (Pazartesi-Cuma)</option>
+                    <option value="weekly">Her hafta</option>
+                    <option value="monthly">Her ay</option>
+                  </select>
+                </label>
+                <details id="recurrence-options" class="recurrence-options hidden">
+                  <summary>İsteğe bağlı tekrar ayarları</summary>
+                  <p class="settings-note">Tekrar aralığını ve bitişini belirleyin. Bitiş seçmezseniz hatırlatma süresiz tekrarlanır.</p>
+                  <label for="recurrence-interval">
+                    Kaç aralıkta bir tekrarlansın?
+                    <input id="recurrence-interval" type="number" min="1" max="365" value="1" />
+                  </label>
+                  <label for="recurrence-end-mode">
+                    Tekrar ne zaman bitsin?
+                    <select id="recurrence-end-mode">
+                      <option value="never">Süresiz</option>
+                      <option value="count">Belirli sayıda tekrardan sonra</option>
+                      <option value="date">Belirli bir tarihte</option>
+                    </select>
+                  </label>
+                  <label id="recurrence-count-field" class="hidden" for="recurrence-count">
+                    Kaç tekrar daha yapılsın?
+                    <input id="recurrence-count" type="number" min="1" max="999" value="10" />
+                  </label>
+                  <label id="recurrence-end-date-field" class="hidden" for="recurrence-end-date">
+                    Tekrar bitiş tarihi
+                    <input id="recurrence-end-date" type="date" />
+                  </label>
+                </details>
+                <div class="two-columns">
+                  <label>
+                    Öncelik
+                    <select id="priority" name="priority">
+                      <option value="normal">Normal</option>
+                      <option value="important">Önemli</option>
+                      <option value="urgent">Acil</option>
+                    </select>
+                  </label>
+                  <label>
+                    Kategori
+                    <select id="category" name="category">
+                      <option value="genel">Genel</option>
+                      <option value="iş">İş</option>
+                      <option value="kişisel">Kişisel</option>
+                      <option value="alışveriş">Alışveriş</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button id="submit-btn" class="primary-btn" type="submit">Hatırlatma ekle</button>
+                  <button id="cancel-edit-btn" class="secondary-btn hidden" type="button">Vazgeç</button>
+                </div>
+              </form>
+            </section>
+            <section class="panel list-panel" aria-labelledby="reminder-list-title">
+              <div class="list-header list-header-stacked">
+                <h3 id="reminder-list-title">Hatırlatma listesi</h3>
+                <div class="filters" aria-label="Hatırlatma süzgeçleri">
+                  <button class="filter-btn active" type="button" data-filter="all">Tümü</button>
+                  <button class="filter-btn" type="button" data-filter="today">Bugün</button>
+                  <button class="filter-btn" type="button" data-filter="upcoming">Yaklaşan</button>
+                  <button class="filter-btn" type="button" data-filter="overdue">Gecikmiş</button>
+                  <button class="filter-btn" type="button" data-filter="done">Tamamlanan</button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <input id="search-input" type="search" placeholder="Başlıkta veya notta ara..." aria-label="Hatırlatmalarda ara" />
+                <button id="clear-completed-btn" class="secondary-btn small-btn" type="button">Tamamlananları temizle</button>
+              </div>
+              <ul id="reminder-list" class="reminder-list"></ul>
+            </section>
+          </div>
+        </section>
+
+        <section class="page-view category-content" data-page-panel="alarm" aria-labelledby="alarm-page-title" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Ses tercihleri</p>
+              <h2 id="alarm-page-title">Alarm ve Ses</h2>
+            </div>
+          </div>
+          <section class="panel settings-panel">
+            <h3>Kendi alarm sesiniz</h3>
+            <p class="audio-help">En fazla 1 MB boyutunda, tarayıcınızın desteklediği bir ses dosyası seçin. Özel sesli alarm için uygulamanın açık kalması gerekir; alarm siz durdurana kadar tekrar eder.</p>
+            <label for="alarm-file">Ses dosyası seçin (en fazla 1 MB)</label>
+            <input id="alarm-file" type="file" accept="audio/*" />
+            <p id="alarm-file-name" class="audio-file-name">Henüz ses dosyası seçilmedi.</p>
+            <label class="sound-toggle" for="alarm-enabled">
+              <input id="alarm-enabled" type="checkbox" checked />
+              Sesli alarmı etkinleştir
+            </label>
+            <label for="alarm-volume">
+              Ses düzeyi
+              <input id="alarm-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+            </label>
+            <output id="alarm-volume-value" for="alarm-volume">80%</output>
+            <div class="audio-actions">
+              <button id="preview-alarm-btn" class="secondary-btn" type="button" disabled>Alarmı dene</button>
+              <button id="clear-alarm-btn" class="secondary-btn" type="button" disabled>Sesi kaldır</button>
+              <button id="stop-alarm-btn" class="delete-btn hidden" type="button">Alarmı durdur</button>
+            </div>
+            <p id="alarm-status" class="audio-status" role="status" aria-live="polite"></p>
+            <p class="settings-note">Özel ses bu cihazdaki uygulama verilerinde saklanır. iOS bildirimlerinde sistemin bildirim sesi kullanılır; seçtiğiniz ses yalnızca uygulama açıkken çalabilir.</p>
+          </section>
+        </section>
+
+        <section class="page-view category-content" data-page-panel="appearance" aria-labelledby="appearance-page-title" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Kişisel tercihler</p>
+              <h2 id="appearance-page-title">Görünüm ve Bildirimler</h2>
+            </div>
+          </div>
+          <section class="panel settings-panel">
+            <div class="setting-row">
+              <div>
+                <h3>Uygulama bilgisi</h3>
+                <p id="install-status" class="settings-note">Uygulama kullanım bilgisi yükleniyor.</p>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <h3>Renk teması</h3>
+                <p class="settings-note">Uygulamanın açık veya koyu görünümünü seçin.</p>
+              </div>
+              <button id="theme-toggle-btn" class="secondary-btn" type="button">Koyu temayı aç</button>
+            </div>
+            <div class="setting-row">
+              <div>
+                <h3>Hatırlatma bildirimleri</h3>
+                <p id="notification-status" class="settings-note">Bildirim izni istenmeden önce amacı açıklanır; sistem izin penceresi yalnızca onayınızdan sonra açılır.</p>
+              </div>
+              <button id="notify-btn" class="secondary-btn" type="button">Bildirim izni ver</button>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <dialog
+      id="permission-explanation-dialog"
+      class="permission-dialog"
+      aria-labelledby="permission-explanation-title"
+      aria-describedby="permission-explanation-description"
+    >
+      <p class="eyebrow">Gizlilik ve izin</p>
+      <h2 id="permission-explanation-title"></h2>
+      <p id="permission-explanation-description" class="settings-note"></p>
+      <div class="permission-dialog-actions">
+        <button id="permission-cancel-btn" class="secondary-btn" type="button">Şimdi değil</button>
+        <button id="permission-consent-btn" class="primary-btn" type="button">Devam et</button>
+      </div>
+    </dialog>
+
+    <template id="reminder-template">
+      <li class="reminder-item">
+        <div class="reminder-main">
+          <input class="reminder-check" type="checkbox" aria-label="Tamamlandı olarak işaretle" />
+          <div class="reminder-copy">
+            <div class="reminder-topline">
+              <span class="reminder-title"></span>
+              <span class="badge"></span>
+            </div>
+            <p class="reminder-details"></p>
+            <div class="reminder-meta">
+              <span class="reminder-date"></span>
+              <span class="reminder-category"></span>
+              <span class="reminder-repeat"></span>
+            </div>
+          </div>
+        </div>
+        <div class="reminder-actions">
+          <button class="edit-btn" type="button" aria-label="Hatırlatmayı düzenle">Düzenle</button>
+          <button class="delete-btn" type="button" aria-label="Sil">Sil</button>
+        </div>
+      </li>
+    </template>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

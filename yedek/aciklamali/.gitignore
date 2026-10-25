@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.xcuserstate
+DerivedData/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+AuthKey_*.p8

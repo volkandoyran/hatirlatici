@@ -1,0 +1,23 @@
+{
+  "name": "hatirlaticilarim-ios",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "ios:add": "cap add ios",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@capacitor/local-notifications": "^7.0.0",
+    "@hatirlaticilarim/widget-bridge": "file:./native/widget-bridge"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "vite": "^6.0.0"
+  }
+}
