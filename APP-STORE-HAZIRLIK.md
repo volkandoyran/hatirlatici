@@ -125,3 +125,5 @@ Kullanıcının seçtiği özel ses dosyası iOS bildirim sesine kopyalanmaz; i�
 sisteminin bildirim sesi kullanılır. Uygulama açıkken mevcut özel ses özelliği çalışır.
 Safari/PWA yerel depolaması ile Capacitor uygulamasının depolaması ayrı olduğundan
 mevcut hatırlatmalar yeni yerel uygulamaya otomatik aktarılmaz.
+
+**Açıklama:** Bu uygulama yapay zekâ desteğiyle geliştirilmiştir.

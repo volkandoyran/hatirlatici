@@ -58,3 +58,5 @@ Kaynakta değişiklik yaparken bu iki yedek düzenini koruyun.
 - iOS en fazla 64 gelecek yerel bildirim aşamasını sıraya alabilir.
 - Tekrarlı hatırlatmanın yeni bildirimi, uygulama bir sonraki tekrarı
   oluşturduktan sonra planlanır.
+
+**Açıklama:** Bu uygulama yapay zekâ desteğiyle geliştirilmiştir.

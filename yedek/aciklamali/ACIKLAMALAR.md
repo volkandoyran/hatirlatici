@@ -26,6 +26,8 @@ Asıl uygulama dosyalarına ve `yedek/orijinal` içindeki yedeğe dokunulmamış
   paylaşabilmesi için yetki örneklerini içerir.
 - `APP-STORE-HAZIRLIK.md`: Mac/Xcode kurulumu, imzalama ve App Store yayın kontrol
   listesini, widget kurulum adımlarını ve mağaza açıklaması taslağını içerir.
+- `README.md`: Proje tanıtımını, çalıştırma/derleme adımlarını, iOS gereksinimlerini
+  ve yedek düzenini özetler; açıklamanın sonunda yapay zekâ desteği beyan edilir.
 - `app-icon.svg` ve `apple-touch-icon.png`: Tarayıcı sekmesi ve iPhone ana ekranı
   için uygulama simgeleridir.
 
