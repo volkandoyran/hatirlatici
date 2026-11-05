@@ -40,5 +40,6 @@ jobs:
                    -scheme "App" \
                    -configuration Release \
                    -sdk iphoneos \
+                   IPHONEOS_DEPLOYMENT_TARGET=16.0 \
                    CODE_SIGNING_ALLOWED=NO \
                    clean build
