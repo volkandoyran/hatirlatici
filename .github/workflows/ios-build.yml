@@ -2,31 +2,43 @@ name: iOS Xcode Build
 
 on:
   push:
-    branches: [ "main" ] # main branch'ine kod pushlandığında çalışır
+    branches: [ "main" ]
 
 jobs:
   build:
-    # GitHub'ın macOS bulut sunucusunu çağırıyoruz
     runs-on: macos-latest
 
     steps:
-    - name: Depoyu Klonla
+    - name: Depoyu klonla
       uses: actions/checkout@v4
 
-    - name: Xcode sürümünü göster
+    - name: Node.js kur
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: JavaScript bağımlılıklarını kur
+      run: npm install
+
+    - name: iOS kaynaklarını derle ve eşitle
+      run: npm run ios:sync
+
+    - name: Xcode ve CocoaPods sürümlerini göster
       run: |
         xcode-select -p
         xcodebuild -version
+        pod --version
 
     - name: CocoaPods bağımlılıklarını kur
       working-directory: ios/App
       run: pod install
 
-    - name: Xcode ile projeyi derle
+    - name: iOS uygulamasını imzasız derle
       working-directory: ios/App
       run: |
         xcodebuild -workspace "App.xcworkspace" \
                    -scheme "App" \
                    -configuration Release \
                    -sdk iphoneos \
+                   CODE_SIGNING_ALLOWED=NO \
                    clean build
