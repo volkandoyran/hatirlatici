@@ -9,37 +9,37 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - name: Depoyu klonla
-      uses: actions/checkout@v4
+      - name: Depoyu klonla
+        uses: actions/checkout@v4
 
-    - name: Node.js kur
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
+      - name: Node.js kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: JavaScript bağımlılıklarını kur
-      run: npm install
+      - name: JavaScript bağımlılıklarını kur
+        run: npm install
 
-    - name: iOS kaynaklarını derle ve eşitle
-      run: npm run ios:sync
+      - name: iOS kaynaklarını derle ve eşitle
+        run: npm run ios:sync
 
-    - name: Xcode ve CocoaPods sürümlerini göster
-      run: |
-        xcode-select -p
-        xcodebuild -version
-        pod --version
+      - name: Xcode ve CocoaPods sürümlerini göster
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          pod --version
 
-    - name: CocoaPods bağımlılıklarını kur
-      working-directory: ios/App
-      run: pod install
+      - name: CocoaPods bağımlılıklarını kur
+        working-directory: ios/App
+        run: pod install
 
-    - name: iOS uygulamasını imzasız derle
-      working-directory: ios/App
-      run: |
-        xcodebuild -workspace "App.xcworkspace" \
-                   -scheme "App" \
-                   -configuration Release \
-                   -sdk iphoneos \
-                   IPHONEOS_DEPLOYMENT_TARGET=16.0 \
-                   CODE_SIGNING_ALLOWED=NO \
-                   clean build
+      - name: iOS uygulamasını imzasız derle
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace "App.xcworkspace" \
+                     -scheme "App" \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     IPHONEOS_DEPLOYMENT_TARGET=16.0 \
+                     CODE_SIGNING_ALLOWED=NO \
+                     clean build
