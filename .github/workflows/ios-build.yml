@@ -1,0 +1,31 @@
+name: iOS Xcode Build
+
+on:
+  push:
+    branches: [ "main" ] # main branch'ine kod pushlandığında çalışır
+
+jobs:
+  build:
+    # GitHub'ın macOS bulut sunucusunu çağırıyoruz
+    runs-on: macos-latest 
+
+    steps:
+    - name: Depoyu Klonla
+      uses: actions/checkout@v4
+
+    - name: Xcode Sürümünü Seç ve Göster
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app # İstediğiniz Xcode sürümü
+        xcodebuild -version
+
+    # Projenizin bağımlılıklarını buraya ekleyin (örn: Pod install)
+    # - name: CocoaPods Kurulumu
+    #   run: pod install
+
+    - name: Xcode ile Projeyi Derle (Build)
+      run: |
+        xcodebuild -scheme "SizinSchemeAdiniz" \
+                   -workspace "SizinProjeniz.xcworkspace" \
+                   -configuration Release \
+                   sdk iphoneos \
+                   clean build
