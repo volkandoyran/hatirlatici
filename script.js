@@ -59,13 +59,75 @@ const permissionExplanationDescription = document.getElementById('permission-exp
 const permissionCancelBtn = document.getElementById('permission-cancel-btn');
 const permissionConsentBtn = document.getElementById('permission-consent-btn');
 
+const NATIVE_SYNC_DELAY_MS = 400;
+const VALID_RECURRENCES = new Set(['none', 'daily', 'weekdays', 'weekly', 'monthly']);
+const VALID_PRIORITIES = new Set(['normal', 'important', 'urgent']);
+
+// localStorage gizli sekmede veya kota dolduğunda hata fırlatabilir; uygulama yine de açılmalı.
+function readStorage(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.error('Depolama okunamadı:', error);
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.error('Depolamaya yazılamadı:', error);
+    return false;
+  }
+}
+
+function removeStorage(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.error('Depolamadan silinemedi:', error);
+  }
+}
+
+// crypto.randomUUID yalnızca HTTPS/localhost'ta vardır; iPhone'dan LAN IP'si ile
+// (vite --host) açıldığında uygulama çökmesin diye yedek kimlik üretici kullanılır.
+function createId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function getTodayInputValue() {
+  const today = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
+function setDefaultFormDate() {
+  document.getElementById('date').value = getTodayInputValue();
+}
+
 let activeFilter = 'all';
 let editingReminderId = null;
-let customAlarmData = localStorage.getItem(ALARM_STORAGE_KEY) || '';
+let customAlarmData = readStorage(ALARM_STORAGE_KEY) || '';
 let activeAlarm = null;
 let reminders = loadReminders();
-let nativeNotificationSync = Promise.resolve();
-let nativeWidgetSync = Promise.resolve();
+let nativeSyncTimer = null;
+let nativeSyncChain = Promise.resolve();
 let pendingPermissionRequest = null;
 let allowAlarmFilePickerClick = false;
 
@@ -87,12 +149,30 @@ function getNativeWidgetBridge() {
   );
 }
 
+function normalizeReminder(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.title !== 'string') {
+    return null;
+  }
+  const dueTimestamp = new Date(raw.dueAt).getTime();
+  if (!Number.isFinite(dueTimestamp)) {
+    return null;
+  }
+  return {
+    ...raw,
+    id: typeof raw.id === 'string' && raw.id ? raw.id : createId(),
+    dueAt: new Date(dueTimestamp).toISOString(),
+    priority: VALID_PRIORITIES.has(raw.priority) ? raw.priority : 'normal',
+    recurrence: VALID_RECURRENCES.has(raw.recurrence) ? raw.recurrence : 'none',
+    completed: raw.completed === true,
+  };
+}
+
 function loadReminders() {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  const saved = readStorage(STORAGE_KEY);
   if (!saved) {
     return [
       {
-        id: crypto.randomUUID(),
+        id: createId(),
         title: 'Günlük kontrolü tamamla',
         details: 'Öncelikli görevleri gözden geçir.',
         dueAt: new Date(Date.now() + 1000 * 60 * 60 * 2).toISOString(),
@@ -104,7 +184,7 @@ function loadReminders() {
         soundPlayed: false,
       },
       {
-        id: crypto.randomUUID(),
+        id: createId(),
         title: 'Alışveriş listesi',
         details: 'Yumurta, süt ve kahve al.',
         dueAt: new Date(Date.now() + 1000 * 60 * 60 * 26).toISOString(),
@@ -118,27 +198,48 @@ function loadReminders() {
   }
 
   try {
-    return JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) {
+      throw new TypeError('Kayıtlı veri liste değil.');
+    }
+    return parsed.map(normalizeReminder).filter(Boolean);
   } catch (error) {
     console.error('Kaydedilen veriler okunamadı:', error);
+    // Bozuk veriyi silmek yerine yedekle; kullanıcı verisi kaybolmasın.
+    writeStorage(`${STORAGE_KEY}-bozuk-yedek`, saved);
     return [];
   }
 }
 
+// Art arda yapılan kayıtlarda iOS bildirimleri/widget her seferinde baştan
+// planlanmasın diye eşitleme kısa bir gecikmeyle tek seferde ve sırayla yapılır.
+function scheduleNativeSync() {
+  if (!isNativeIOSApp()) {
+    return;
+  }
+  clearTimeout(nativeSyncTimer);
+  nativeSyncTimer = setTimeout(() => {
+    nativeSyncChain = nativeSyncChain
+      .then(() =>
+        Promise.all([
+          synchronizeNativeWidget().catch((error) => {
+            console.error('iOS widget bilgileri güncellenemedi:', error);
+            notificationStatus.textContent = 'Widget bilgileri güncellenemedi. Uygulamayı yeniden açıp tekrar deneyin.';
+          }),
+          synchronizeNativeNotifications().catch((error) => {
+            console.error('iOS hatırlatma bildirimleri eşitlenemedi:', error);
+            notificationStatus.textContent = 'iOS bildirimleri güncellenemedi. İzinleri Ayarlar bölümünden kontrol edin.';
+          }),
+        ])
+      );
+  }, NATIVE_SYNC_DELAY_MS);
+}
+
 function saveReminders() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reminders));
-  nativeWidgetSync = nativeWidgetSync
-    .then(synchronizeNativeWidget)
-    .catch((error) => {
-      console.error('iOS widget bilgileri güncellenemedi:', error);
-      notificationStatus.textContent = 'Widget bilgileri güncellenemedi. Uygulamayı yeniden açıp tekrar deneyin.';
-    });
-  nativeNotificationSync = nativeNotificationSync
-    .then(synchronizeNativeNotifications)
-    .catch((error) => {
-      console.error('iOS hatırlatma bildirimleri eşitlenemedi:', error);
-      notificationStatus.textContent = 'iOS bildirimleri güncellenemedi. İzinleri Ayarlar bölümünden kontrol edin.';
-    });
+  if (!writeStorage(STORAGE_KEY, JSON.stringify(reminders))) {
+    notificationStatus.textContent = 'Hatırlatmalar kaydedilemedi. Cihaz depolama alanı dolu olabilir; özel alarm sesini kaldırmayı deneyin.';
+  }
+  scheduleNativeSync();
 }
 
 function parseLocalDateTime(dateValue, timeValue) {
@@ -223,8 +324,17 @@ function getNextOccurrence(reminder, fromDate = new Date()) {
     }
   }
 
-  while (next.getTime() <= fromDate.getTime()) {
+  if (!VALID_RECURRENCES.has(recurrence) || recurrence === 'none' || Number.isNaN(next.getTime())) {
+    return reminder.dueAt;
+  }
+
+  // Erken tamamlanan tekrarlı hatırlatma da bir sonraki tekrara geçmeli;
+  // bu yüzden en az bir kez ilerletilir, sonra geçmişte kalan tekrarlar atlanır.
+  advanceOneOccurrence();
+  let guard = 0;
+  while (next.getTime() <= fromDate.getTime() && guard < 100000) {
     advanceOneOccurrence();
+    guard += 1;
   }
 
   return next.toISOString();
@@ -232,8 +342,8 @@ function getNextOccurrence(reminder, fromDate = new Date()) {
 
 function resetFormState() {
   editingReminderId = null;
-  formTitle.textContent = 'Yeni Hatırlatma';
-  submitBtn.textContent = 'Hatırlatıcı ekle';
+  formTitle.textContent = 'Yeni hatırlatma';
+  submitBtn.textContent = 'Hatırlatma ekle';
   cancelEditBtn.classList.add('hidden');
   recurrenceOptions.open = false;
   updateRecurrenceOptions();
@@ -250,13 +360,12 @@ function getDueStatus(reminder) {
 }
 
 function getCounts() {
+  const todayString = new Date().toDateString();
   return {
     total: reminders.length,
-    today: reminders.filter((item) => {
-      const date = new Date(item.dueAt);
-      const now = new Date();
-      return !item.completed && date.toDateString() === now.toDateString();
-    }).length,
+    today: reminders.filter(
+      (item) => !item.completed && new Date(item.dueAt).toDateString() === todayString
+    ).length,
     pending: reminders.filter((item) => !item.completed).length,
     done: reminders.reduce(
       (count, item) =>
@@ -346,47 +455,47 @@ function renderOverview() {
   });
 }
 
+function matchesActiveFilter(item, now, todayString) {
+  if (activeFilter === 'done') return item.completed;
+  if (activeFilter === 'today') {
+    return !item.completed && new Date(item.dueAt).toDateString() === todayString;
+  }
+  if (activeFilter === 'upcoming') {
+    return !item.completed && new Date(item.dueAt).getTime() > now;
+  }
+  if (activeFilter === 'overdue') {
+    return !item.completed && new Date(item.dueAt).getTime() < now;
+  }
+  return true;
+}
+
 function renderReminders() {
   const now = Date.now();
-  const searchQuery = searchInput.value.trim().toLowerCase();
+  const todayString = new Date().toDateString();
+  const searchQuery = searchInput.value.trim().toLocaleLowerCase('tr-TR');
 
-  const visible = [...reminders]
-    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
+  // Önce süz, sonra sırala: gereksiz sıralama ve tarih ayrıştırmasından kaçınılır.
+  const visible = reminders
     .filter((item) => {
-      const matchesSearch = !searchQuery || item.title.toLowerCase().includes(searchQuery) || (item.details || '').toLowerCase().includes(searchQuery);
-
-      if (!matchesSearch) {
-        return false;
-      }
-
-      if (activeFilter === 'all') return true;
-      if (activeFilter === 'done') return item.completed;
-      if (activeFilter === 'today') {
-        const itemDate = new Date(item.dueAt);
-        const today = new Date();
-        return !item.completed && itemDate.toDateString() === today.toDateString();
-      }
-      if (activeFilter === 'upcoming') {
-        if (item.completed) return false;
-        return new Date(item.dueAt).getTime() > now;
-      }
-      if (activeFilter === 'overdue') {
-        return !item.completed && new Date(item.dueAt).getTime() < now;
-      }
-      return true;
-    });
-
-  reminderList.innerHTML = '';
+      const matchesSearch =
+        !searchQuery ||
+        item.title.toLocaleLowerCase('tr-TR').includes(searchQuery) ||
+        (item.details || '').toLocaleLowerCase('tr-TR').includes(searchQuery);
+      return matchesSearch && matchesActiveFilter(item, now, todayString);
+    })
+    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
 
   if (visible.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'empty-state';
     empty.textContent = 'Gösterilecek hatırlatma yok.';
-    reminderList.appendChild(empty);
+    reminderList.replaceChildren(empty);
     renderStats();
     return;
   }
 
+  // Tüm öğeler tek seferde DOM'a eklenir; olaylar listeye bir kez bağlanır (aşağıda).
+  const listFragment = document.createDocumentFragment();
   visible.forEach((item) => {
     const fragment = remindTemplate.content.cloneNode(true);
     const itemNode = fragment.querySelector('.reminder-item');
@@ -397,12 +506,10 @@ function renderReminders() {
     const dateText = fragment.querySelector('.reminder-date');
     const category = fragment.querySelector('.reminder-category');
     const repeatText = fragment.querySelector('.reminder-repeat');
-    const deleteBtn = fragment.querySelector('.delete-btn');
-    const editBtn = fragment.querySelector('.edit-btn');
 
     itemNode.dataset.id = item.id;
     itemNode.classList.toggle('done', item.completed);
-    itemNode.classList.toggle(item.priority, true);
+    itemNode.classList.add(item.priority);
     checkbox.checked = item.completed;
     title.textContent = item.title;
     details.textContent = item.details || 'Not eklenmedi.';
@@ -417,97 +524,125 @@ function renderReminders() {
       title.style.textDecoration = 'line-through';
     }
 
-    checkbox.addEventListener('change', () => {
-      reminders = reminders.map((reminder) => {
-        if (reminder.id !== item.id) {
-          return reminder;
-        }
-        if (checkbox.checked && reminder.recurrence && reminder.recurrence !== 'none') {
-          const completedOccurrences = (reminder.completedOccurrences || 0) + 1;
-          const nextOccurrence = getNextOccurrence(reminder);
-          const repeatLimitReached =
-            reminder.recurrenceEndMode === 'count' &&
-            (reminder.completedOccurrences || 0) >= Number(reminder.recurrenceEndCount);
-          const endTimestamp = getRecurrenceEndTimestamp(reminder.recurrenceEndDate);
-          const endDateReached = endTimestamp !== null && new Date(nextOccurrence).getTime() > endTimestamp;
-
-          if (repeatLimitReached || endDateReached) {
-            return {
-              ...reminder,
-              completed: true,
-              notified: true,
-              soundPlayed: true,
-              completedOccurrences,
-            };
-          }
-
-          return {
-            ...reminder,
-            dueAt: nextOccurrence,
-            notified: false,
-            notifiedStages: getElapsedLeadStages(nextOccurrence),
-            soundPlayed: false,
-            completedOccurrences,
-          };
-        }
-        return {
-          ...reminder,
-          completed: checkbox.checked,
-          notified: checkbox.checked ? true : reminder.notified,
-          soundPlayed: checkbox.checked ? true : reminder.soundPlayed,
-        };
-      });
-      saveReminders();
-      render();
-    });
-
-    editBtn.addEventListener('click', () => {
-      const reminder = reminders.find((entry) => entry.id === item.id);
-      if (!reminder) return;
-
-      const { date, time } = dateToInputValue(reminder.dueAt);
-      document.getElementById('title').value = reminder.title;
-      document.getElementById('details').value = reminder.details || '';
-      document.getElementById('date').value = date;
-      document.getElementById('time').value = time;
-      recurrenceInput.value = reminder.recurrence || 'none';
-      recurrenceOptions.open = Boolean(reminder.recurrence && reminder.recurrence !== 'none');
-      recurrenceIntervalInput.value = String(reminder.recurrenceInterval || 1);
-      recurrenceEndModeInput.value = reminder.recurrenceEndMode || 'never';
-      recurrenceCountInput.value = String(reminder.recurrenceEndCount || 10);
-      recurrenceEndDateInput.value = reminder.recurrenceEndDate || '';
-      updateRecurrenceOptions();
-      document.getElementById('priority').value = reminder.priority;
-      document.getElementById('category').value = reminder.category;
-
-      editingReminderId = reminder.id;
-      formTitle.textContent = 'Hatırlatma Düzenle';
-      submitBtn.textContent = 'Değişiklikleri kaydet';
-      cancelEditBtn.classList.remove('hidden');
-      document.getElementById('title').focus();
-    });
-
-    deleteBtn.addEventListener('click', () => {
-      reminders = reminders.filter((reminder) => reminder.id !== item.id);
-      saveReminders();
-      if (editingReminderId === item.id) {
-        resetFormState();
-        reminderForm.reset();
-      }
-      render();
-    });
-
-    reminderList.appendChild(fragment);
+    listFragment.appendChild(fragment);
   });
 
+  reminderList.replaceChildren(listFragment);
   renderStats();
 }
+
+function toggleReminderCompletion(reminderId, isChecked) {
+  reminders = reminders.map((reminder) => {
+    if (reminder.id !== reminderId) {
+      return reminder;
+    }
+    if (isChecked && reminder.recurrence && reminder.recurrence !== 'none') {
+      const completedOccurrences = (reminder.completedOccurrences || 0) + 1;
+      const nextOccurrence = getNextOccurrence(reminder);
+      // "Kaç tekrar daha" sayısı ilk hatırlatmadan sonraki tekrarları sayar.
+      const repeatLimitReached =
+        reminder.recurrenceEndMode === 'count' &&
+        (reminder.completedOccurrences || 0) >= Number(reminder.recurrenceEndCount);
+      const endTimestamp = getRecurrenceEndTimestamp(reminder.recurrenceEndDate);
+      const endDateReached = endTimestamp !== null && new Date(nextOccurrence).getTime() > endTimestamp;
+
+      if (repeatLimitReached || endDateReached) {
+        return {
+          ...reminder,
+          completed: true,
+          notified: true,
+          soundPlayed: true,
+          completedOccurrences,
+        };
+      }
+
+      return {
+        ...reminder,
+        dueAt: nextOccurrence,
+        notified: false,
+        notifiedStages: getElapsedLeadStages(nextOccurrence),
+        soundPlayed: false,
+        completedOccurrences,
+      };
+    }
+    return {
+      ...reminder,
+      completed: isChecked,
+      notified: isChecked ? true : reminder.notified,
+      soundPlayed: isChecked ? true : reminder.soundPlayed,
+    };
+  });
+  saveReminders();
+  render();
+}
+
+function startEditingReminder(reminderId) {
+  const reminder = reminders.find((entry) => entry.id === reminderId);
+  if (!reminder) return;
+
+  const { date, time } = dateToInputValue(reminder.dueAt);
+  document.getElementById('title').value = reminder.title;
+  document.getElementById('details').value = reminder.details || '';
+  document.getElementById('date').value = date;
+  document.getElementById('time').value = time;
+  recurrenceInput.value = reminder.recurrence || 'none';
+  recurrenceOptions.open = Boolean(reminder.recurrence && reminder.recurrence !== 'none');
+  recurrenceIntervalInput.value = String(reminder.recurrenceInterval || 1);
+  recurrenceEndModeInput.value = reminder.recurrenceEndMode || 'never';
+  recurrenceCountInput.value = String(reminder.recurrenceEndCount || 10);
+  recurrenceEndDateInput.value = reminder.recurrenceEndDate || '';
+  updateRecurrenceOptions();
+  document.getElementById('priority').value = reminder.priority;
+  document.getElementById('category').value = reminder.category || 'genel';
+
+  editingReminderId = reminder.id;
+  formTitle.textContent = 'Hatırlatma düzenle';
+  submitBtn.textContent = 'Değişiklikleri kaydet';
+  cancelEditBtn.classList.remove('hidden');
+  document.getElementById('title').focus();
+}
+
+function deleteReminder(reminderId) {
+  reminders = reminders.filter((reminder) => reminder.id !== reminderId);
+  saveReminders();
+  if (editingReminderId === reminderId) {
+    reminderForm.reset();
+    resetFormState();
+    setDefaultFormDate();
+  }
+  render();
+}
+
+// Her render'da her öğeye yeni dinleyici eklemek yerine tek bir yetkili dinleyici.
+reminderList.addEventListener('change', (event) => {
+  const checkbox = event.target;
+  if (!(checkbox instanceof HTMLInputElement) || !checkbox.classList.contains('reminder-check')) {
+    return;
+  }
+  const itemNode = checkbox.closest('.reminder-item');
+  if (itemNode?.dataset.id) {
+    toggleReminderCompletion(itemNode.dataset.id, checkbox.checked);
+  }
+});
+
+reminderList.addEventListener('click', (event) => {
+  const button = event.target instanceof Element ? event.target.closest('button') : null;
+  const itemNode = button?.closest('.reminder-item');
+  if (!button || !itemNode?.dataset.id) {
+    return;
+  }
+  if (button.classList.contains('edit-btn')) {
+    startEditingReminder(itemNode.dataset.id);
+  } else if (button.classList.contains('delete-btn')) {
+    deleteReminder(itemNode.dataset.id);
+  }
+});
 
 function applyTheme(theme) {
   const isDark = theme === 'dark';
   document.body.classList.toggle('dark-theme', isDark);
   themeToggleBtn.textContent = isDark ? 'Açık temayı aç' : 'Koyu temayı aç';
-  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  writeStorage(THEME_STORAGE_KEY, theme);
 }
 
 function render() {
@@ -634,13 +769,13 @@ function updateAlarmControls() {
   previewAlarmBtn.disabled = !hasCustomAlarm;
   clearAlarmBtn.disabled = !hasCustomAlarm;
   alarmFileName.textContent = hasCustomAlarm
-    ? localStorage.getItem(ALARM_FILENAME_KEY) || 'Özel alarm sesi hazır.'
+    ? readStorage(ALARM_FILENAME_KEY) || 'Özel alarm sesi hazır.'
     : 'Henüz ses dosyası seçilmedi.';
   alarmVolumeValue.textContent = `${Math.round(Number(alarmVolumeInput.value) * 100)}%`;
 }
 
 function loadAlarmSettings() {
-  const savedSettings = localStorage.getItem(ALARM_SETTINGS_KEY);
+  const savedSettings = readStorage(ALARM_SETTINGS_KEY);
   if (!savedSettings) {
     return;
   }
@@ -659,16 +794,14 @@ function loadAlarmSettings() {
 }
 
 function saveAlarmSettings() {
-  try {
-    localStorage.setItem(
-      ALARM_SETTINGS_KEY,
-      JSON.stringify({
-        enabled: alarmEnabledInput.checked,
-        volume: Number(alarmVolumeInput.value),
-      })
-    );
-  } catch (error) {
-    console.error('Alarm ayarları kaydedilemedi:', error);
+  const saved = writeStorage(
+    ALARM_SETTINGS_KEY,
+    JSON.stringify({
+      enabled: alarmEnabledInput.checked,
+      volume: Number(alarmVolumeInput.value),
+    })
+  );
+  if (!saved) {
     alarmStatus.textContent = 'Alarm ayarları kaydedilemedi.';
   }
 }
@@ -774,16 +907,15 @@ function handleAlarmFileChange() {
       return;
     }
 
-    try {
-      localStorage.setItem(ALARM_STORAGE_KEY, reader.result);
-      localStorage.setItem(ALARM_FILENAME_KEY, file.name);
-      customAlarmData = reader.result;
-      updateAlarmControls();
-      alarmStatus.textContent = 'Özel alarm sesi kaydedildi.';
-    } catch (error) {
-      console.error('Alarm sesi kaydedilemedi:', error);
+    if (!writeStorage(ALARM_STORAGE_KEY, reader.result)) {
       alarmStatus.textContent = 'Ses kaydedilemedi. Tarayıcı depolama alanı dolu olabilir.';
+      return;
     }
+    writeStorage(ALARM_FILENAME_KEY, file.name);
+    customAlarmData = reader.result;
+    stopAlarm(false);
+    updateAlarmControls();
+    alarmStatus.textContent = 'Özel alarm sesi kaydedildi.';
   });
   reader.addEventListener('error', () => {
     alarmStatus.textContent = 'Ses dosyası okunamadı.';
@@ -793,8 +925,8 @@ function handleAlarmFileChange() {
 
 function clearCustomAlarm() {
   stopAlarm(false);
-  localStorage.removeItem(ALARM_STORAGE_KEY);
-  localStorage.removeItem(ALARM_FILENAME_KEY);
+  removeStorage(ALARM_STORAGE_KEY);
+  removeStorage(ALARM_FILENAME_KEY);
   customAlarmData = '';
   alarmFileInput.value = '';
   updateAlarmControls();
@@ -851,82 +983,71 @@ function initializeNotificationStages() {
   }
 }
 
-function setReminderNotification(reminder, stage) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
-    return;
-  }
-
+// Bir hatırlatmanın geçmiş tüm bildirim aşamalarını işaretler; uygulama geri
+// açıldığında eski uyarıları toplu göndermek yerine yalnızca en güncel aşamayı gösterir.
+// Değişen hatırlatmayı döndürür, değişiklik yoksa null.
+function processReminderNotification(reminder, now) {
   const notifiedStages = getNotifiedStages(reminder);
-  if (notifiedStages.includes(stage.minutes)) {
-    return;
-  }
-
   const dueAt = new Date(reminder.dueAt).getTime();
-  const now = Date.now();
-  // Uygulama geri açıldığında eski uyarıları toplu göndermek yerine yalnızca en güncel aşamayı gönder.
   const elapsedStages = NOTIFICATION_LEAD_TIMES.filter(
     (item) => dueAt - item.minutes * 60 * 1000 <= now
-  ).map((item) => item.minutes);
-  const currentStage = [...NOTIFICATION_LEAD_TIMES]
-    .reverse()
-    .find((item) => elapsedStages.includes(item.minutes));
-  const newlyElapsedStages = NOTIFICATION_LEAD_TIMES
-    .filter(
-      (item) =>
-        elapsedStages.includes(item.minutes) &&
-        !notifiedStages.includes(item.minutes)
-    )
-    .map((item) => item.minutes);
-  const nextNotifiedStages = [...new Set([...notifiedStages, ...newlyElapsedStages])];
+  );
+  const newlyElapsed = elapsedStages.filter((item) => !notifiedStages.includes(item.minutes));
+  if (newlyElapsed.length === 0) {
+    return null;
+  }
 
-  const shouldSend = currentStage && currentStage.minutes === stage.minutes;
-  if (shouldSend) {
+  // NOTIFICATION_LEAD_TIMES büyükten küçüğe sıralı; son geçen aşama en günceli.
+  const currentStage = elapsedStages[elapsedStages.length - 1];
+  if (!notifiedStages.includes(currentStage.minutes)) {
     try {
-      new Notification(stage.minutes === 0 ? 'Hatırlatma zamanı' : 'Yaklaşan hatırlatma', {
-        body: stage.minutes === 0
+      new Notification(currentStage.minutes === 0 ? 'Hatırlatma zamanı' : 'Yaklaşan hatırlatma', {
+        body: currentStage.minutes === 0
           ? reminder.title
-          : `${reminder.title} · ${stage.label}`,
-        tag: `${reminder.id}-${stage.minutes}`,
+          : `${reminder.title} · ${currentStage.label}`,
+        tag: `${reminder.id}-${currentStage.minutes}`,
       });
     } catch (error) {
       console.error('Hatırlatma bildirimi gösterilemedi:', error);
       notificationStatus.textContent = 'Hatırlatma bildirimi gösterilemedi. Tarayıcı bildirim izinlerini kontrol edin.';
-      return;
+      return null;
     }
   }
 
-  reminders = reminders.map((item) =>
-    item.id === reminder.id
-      ? {
-          ...item,
-          notified: nextNotifiedStages.includes(0),
-          notifiedStages: nextNotifiedStages,
-        }
-      : item
-  );
-  saveReminders();
+  const nextNotifiedStages = [...new Set([
+    ...notifiedStages,
+    ...newlyElapsed.map((item) => item.minutes),
+  ])];
+  return {
+    ...reminder,
+    notified: nextNotifiedStages.includes(0),
+    notifiedStages: nextNotifiedStages,
+  };
 }
 
 function checkDueReminders() {
-  const now = Date.now();
-  reminders.forEach((reminder) => {
-    if (reminder.completed) {
-      return;
+  // Yerel iOS uygulamasında bildirimleri sistem planlar; burada tekrar gösterilmez.
+  const canNotify =
+    !isNativeIOSApp() && 'Notification' in window && Notification.permission === 'granted';
+  if (canNotify) {
+    const now = Date.now();
+    let changed = false;
+    reminders = reminders.map((reminder) => {
+      if (reminder.completed) {
+        return reminder;
+      }
+      const updated = processReminderNotification(reminder, now);
+      if (!updated) {
+        return reminder;
+      }
+      changed = true;
+      return updated;
+    });
+    // Her hatırlatma için ayrı ayrı değil, tek seferde kaydedilir.
+    if (changed) {
+      saveReminders();
     }
-
-    const dueAt = new Date(reminder.dueAt).getTime();
-    const notifiedStages = getNotifiedStages(reminder);
-    const stage = [...NOTIFICATION_LEAD_TIMES]
-      .reverse()
-      .find(
-        (item) =>
-          dueAt - item.minutes * 60 * 1000 <= now &&
-          !notifiedStages.includes(item.minutes)
-      );
-    if (stage) {
-      setReminderNotification(reminder, stage);
-    }
-  });
+  }
   checkDueAlarm();
 }
 
@@ -1153,6 +1274,15 @@ async function registerOfflineSupport() {
     return;
   }
 
+  // Geliştirme sunucusunda (npm run dev) service worker eski dosyaları önbellekten
+  // sunarak yapılan değişikliklerin görünmemesine yol açar; bu yüzden kaydedilmez.
+  if (import.meta.env?.DEV) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    installStatus.textContent = 'Geliştirme modu: çevrimdışı önbellek devre dışı.';
+    return;
+  }
+
   try {
     await navigator.serviceWorker.register('./service-worker.js');
     await navigator.serviceWorker.ready;
@@ -1195,7 +1325,12 @@ function handleFormSubmit(event) {
     return;
   }
 
-  const dueAt = parseLocalDateTime(date, time).toISOString();
+  const dueDate = parseLocalDateTime(date, time);
+  if (Number.isNaN(dueDate.getTime())) {
+    document.getElementById('date').reportValidity();
+    return;
+  }
+  const dueAt = dueDate.toISOString();
 
   if (editingReminderId) {
     reminders = reminders.map((reminder) =>
@@ -1212,7 +1347,9 @@ function handleFormSubmit(event) {
           recurrenceEndMode,
           recurrenceEndCount,
           recurrenceEndDate,
-          recurrenceDay: parseLocalDateTime(date, time).getDate(),
+          recurrenceDay: dueDate.getDate(),
+          // Geçmiş bir tarihi ileri alıp düzenlenen tamamlanmış kayıt yeniden etkinleşir.
+          completed: reminder.completed && dueDate.getTime() <= Date.now(),
           notified: false,
           notifiedStages: getElapsedLeadStages(dueAt),
           soundPlayed: false,
@@ -1221,7 +1358,7 @@ function handleFormSubmit(event) {
     );
   } else {
     reminders.push({
-      id: crypto.randomUUID(),
+      id: createId(),
       title,
       details,
       dueAt,
@@ -1232,7 +1369,7 @@ function handleFormSubmit(event) {
       recurrenceEndMode,
       recurrenceEndCount,
       recurrenceEndDate,
-      recurrenceDay: parseLocalDateTime(date, time).getDate(),
+      recurrenceDay: dueDate.getDate(),
       completed: false,
       notified: false,
       notifiedStages: getElapsedLeadStages(dueAt),
@@ -1243,11 +1380,7 @@ function handleFormSubmit(event) {
   saveReminders();
   reminderForm.reset();
   resetFormState();
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  document.getElementById('date').value = `${year}-${month}-${day}`;
+  setDefaultFormDate();
   render();
   openPage('reminders');
 }
@@ -1268,8 +1401,11 @@ document.getElementById('quick-add-btn').addEventListener('click', () => {
   document.getElementById('title').focus();
 });
 
+let searchRenderFrame = 0;
 searchInput.addEventListener('input', () => {
-  render();
+  // Hızlı yazarken her tuşta değil, bir sonraki çizim karesinde bir kez çizilir.
+  cancelAnimationFrame(searchRenderFrame);
+  searchRenderFrame = requestAnimationFrame(renderReminders);
 });
 
 alarmFileInput.addEventListener('click', (event) => {
@@ -1322,11 +1458,7 @@ clearCompletedBtn.addEventListener('click', () => {
 cancelEditBtn.addEventListener('click', () => {
   reminderForm.reset();
   resetFormState();
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  document.getElementById('date').value = `${year}-${month}-${day}`;
+  setDefaultFormDate();
 });
 
 reminderForm.addEventListener('submit', handleFormSubmit);
@@ -1336,43 +1468,70 @@ themeToggleBtn.addEventListener('click', () => {
   applyTheme(nextTheme);
 });
 
-window.addEventListener('load', () => {
-  initializeNotificationStages();
-  registerOfflineSupport();
-  updateNotificationStatus().catch((error) => {
-    console.error('Bildirim durumu okunamadı:', error);
-    notificationStatus.textContent = 'Bildirim durumu alınamadı. İzinleri kontrol edin.';
-  });
-  synchronizeNativeNotifications().catch((error) => {
-    console.error('iOS bildirimleri başlatılamadı:', error);
-    notificationStatus.textContent = 'iOS bildirimleri başlatılamadı. İzinleri kontrol edin.';
-  });
-  synchronizeNativeWidget().catch((error) => {
-    console.error('iOS widget bilgileri başlatılamadı:', error);
-    notificationStatus.textContent = 'Widget bilgileri eşitlenemedi. App Group yapılandırmasını kontrol edin.';
-  });
-  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'light';
-  applyTheme(savedTheme);
+function initializeApp() {
+  // Tema ilk çizimden önce uygulanır; açık temanın bir an görünüp kaybolması önlenir.
+  applyTheme(readStorage(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light');
   loadAlarmSettings();
   updateAlarmControls();
 
-  const today = new Date();
   todayLabel.textContent = new Intl.DateTimeFormat('tr-TR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  }).format(today);
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  document.getElementById('date').value = `${year}-${month}-${day}`;
+  }).format(new Date());
+  setDefaultFormDate();
   resetFormState();
+
+  initializeNotificationStages();
   render();
   checkDueReminders();
+
+  registerOfflineSupport();
+  updateNotificationStatus().catch((error) => {
+    console.error('Bildirim durumu okunamadı:', error);
+    notificationStatus.textContent = 'Bildirim durumu alınamadı. İzinleri kontrol edin.';
+  });
+  // iOS bildirim + widget eşitlemesi tek, sıralı kuyruğa alınır.
+  scheduleNativeSync();
+
   if (!isNativeIOSApp() && isIOSDevice() && !isAppInstalled()) {
     notificationStatus.textContent = 'iPhone’da bildirim için iOS/iPadOS 16.4 veya üzeri gerekir. HTTPS adresindeki uygulamayı Safari’den ana ekrana ekleyip oradan açın.';
   }
+}
+
+// Arka plandaki sekmelerde zamanlayıcılar yavaşlatılır; sekmeye dönülünce
+// kaçan bildirimler/alarmlar hemen kontrol edilir ve "bugün" etiketleri tazelenir.
+let lastRenderedDay = new Date().toDateString();
+function refreshIfNeeded() {
+  const currentDay = new Date().toDateString();
+  if (currentDay !== lastRenderedDay) {
+    lastRenderedDay = currentDay;
+    todayLabel.textContent = new Intl.DateTimeFormat('tr-TR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date());
+  }
+  checkDueReminders();
+  render();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    refreshIfNeeded();
+  }
 });
 
-setInterval(checkDueReminders, 30000);
+// type="module" betikleri HTML ayrıştırıldıktan sonra çalışır; görsellerin
+// yüklenmesini (load) beklemeye gerek yoktur.
+initializeApp();
+setInterval(() => {
+  checkDueReminders();
+  // Gün değiştiyse "Bugün" süzgeci ve sayaçlar yenilenir; aksi halde liste
+  // gereksiz yere yeniden çizilmez (odak ve kaydırma konumu korunur).
+  if (new Date().toDateString() !== lastRenderedDay) {
+    refreshIfNeeded();
+  }
+}, 30000);

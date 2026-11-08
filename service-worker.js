@@ -1,5 +1,5 @@
 // Uygulamanın temel dosyalarını ilk açılışta önbelleğe alıp çevrimdışı erişim sağlar.
-const CACHE_NAME = 'hatirlaticilarim-ios-v15';
+const CACHE_NAME = 'hatirlaticilarim-ios-v16';
 const APP_FILES = [
   './',
   './index.html',
@@ -18,11 +18,17 @@ self.addEventListener('install', (event) => {
       }
 
       const html = await page.text();
-      const pageAssets = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)]
+      const pageAssets = [...html.matchAll(/(?:src|href)=["']([^"'#]+)["']/g)]
         .map(([, reference]) => new URL(reference, self.location.href))
         .filter((assetUrl) => assetUrl.origin === self.location.origin)
         .map((assetUrl) => assetUrl.href);
-      await cache.addAll([...new Set(pageAssets)]);
+      // Tek bir eksik dosya tüm kurulumu bozmasın; her dosya ayrı önbelleğe alınır.
+      const results = await Promise.allSettled(
+        [...new Set(pageAssets)].map((assetUrl) => cache.add(assetUrl))
+      );
+      results
+        .filter((result) => result.status === 'rejected')
+        .forEach((result) => console.warn('Önbelleğe alınamayan dosya:', result.reason));
     })
   );
   self.skipWaiting();
@@ -70,6 +76,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Vite'in /assets/ altındaki dosyaları içerik özetli (hash) adlıdır: önbellek öncelikli
+  // sunulması güvenlidir. Diğer dosyalar için de önbellek önceliklidir; sürüm değişince
+  // CACHE_NAME artırılarak eski önbellek temizlenir.
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {

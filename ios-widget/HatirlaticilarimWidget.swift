@@ -37,27 +37,49 @@ private struct ReminderWidgetProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ReminderWidgetEntry>) -> Void) {
-        let entry = loadEntry()
-        let refreshDate = Calendar.current.date(byAdding: .minute, value: 15, to: .now) ?? .now.addingTimeInterval(900)
-        completion(Timeline(entries: [entry], policy: .after(refreshDate)))
+        let now = Date.now
+        let pending = loadPendingReminders()
+
+        // Her yaklaşan hatırlatmanın saatinde ve gece yarısında yeni bir giriş üretilir;
+        // böylece süresi geçen hatırlatma 15 dakika beklemeden widget'tan düşer.
+        var entryDates: [Date] = [now]
+        entryDates.append(contentsOf: pending
+            .map(\.dueAt)
+            .filter { $0 > now }
+            .prefix(20)
+            .map { $0.addingTimeInterval(1) })
+        if let midnight = Calendar.current.nextDate(
+            after: now,
+            matching: DateComponents(hour: 0, minute: 0),
+            matchingPolicy: .nextTime
+        ) {
+            entryDates.append(midnight)
+        }
+
+        let entries = Array(Set(entryDates)).sorted().map { makeEntry(at: $0, from: pending) }
+        let refreshDate = Calendar.current.date(byAdding: .minute, value: 15, to: now) ?? now.addingTimeInterval(900)
+        completion(Timeline(entries: entries, policy: .after(refreshDate)))
     }
 
     private func loadEntry() -> ReminderWidgetEntry {
+        makeEntry(at: .now, from: loadPendingReminders())
+    }
+
+    private func loadPendingReminders() -> [ReminderWidgetItem] {
         guard
             let sharedDefaults = UserDefaults(suiteName: widgetAppGroupIdentifier),
             let data = sharedDefaults.data(forKey: widgetRemindersKey),
             let reminders = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else {
-            return .empty
+            return []
         }
 
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let fallbackDateFormatter = ISO8601DateFormatter()
-        let pendingReminders = reminders.compactMap { reminder -> ReminderWidgetItem? in
+        return reminders.compactMap { reminder -> ReminderWidgetItem? in
             guard
-                let isCompleted = reminder["completed"] as? Bool,
-                !isCompleted,
+                (reminder["completed"] as? Bool) != true,
                 let title = reminder["title"] as? String,
                 let dateString = reminder["dueAt"] as? String,
                 let dueAt = dateFormatter.date(from: dateString) ?? fallbackDateFormatter.date(from: dateString)
@@ -68,19 +90,29 @@ private struct ReminderWidgetProvider: TimelineProvider {
             return ReminderWidgetItem(title: title, dueAt: dueAt)
         }
         .sorted { $0.dueAt < $1.dueAt }
+    }
 
-        let upcomingReminders = pendingReminders.filter { $0.dueAt > .now }
+    private func makeEntry(at date: Date, from pendingReminders: [ReminderWidgetItem]) -> ReminderWidgetEntry {
+        let calendar = Calendar.current
         // Bugünkü sayaç, zamanı geçmiş ancak tamamlanmamış bugünkü işleri de içerir.
         let todayCount = pendingReminders.filter {
-            Calendar.current.isDateInToday($0.dueAt)
+            calendar.isDate($0.dueAt, inSameDayAs: date)
         }.count
 
         return ReminderWidgetEntry(
-            date: .now,
-            nextReminder: upcomingReminders.first,
+            date: date,
+            nextReminder: pendingReminders.first { $0.dueAt > date },
             todayCount: todayCount
         )
     }
+}
+
+/// Bugünkü hatırlatmada yalnızca saat, diğer günlerde kısa tarih + saat gösterir.
+private func formattedDueText(_ dueAt: Date, relativeTo now: Date) -> String {
+    if Calendar.current.isDate(dueAt, inSameDayAs: now) {
+        return dueAt.formatted(date: .omitted, time: .shortened)
+    }
+    return dueAt.formatted(.dateTime.day().month(.abbreviated).hour().minute())
 }
 
 private struct ReminderWidgetView: View {
@@ -114,7 +146,7 @@ private struct ReminderWidgetView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 Label {
-                    Text(reminder.dueAt, style: .time)
+                    Text(formattedDueText(reminder.dueAt, relativeTo: entry.date))
                 } icon: {
                     Image(systemName: "clock")
                 }
@@ -150,7 +182,7 @@ private struct ReminderWidgetView: View {
                 Text(reminder.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text(reminder.dueAt, style: .time)
+                Text(formattedDueText(reminder.dueAt, relativeTo: entry.date))
                     .font(.caption)
             } else {
                 Text("Yaklaşan hatırlatma yok")
@@ -160,9 +192,10 @@ private struct ReminderWidgetView: View {
         }
     }
 
+    @ViewBuilder
     private var inlineContent: some View {
         if let reminder = entry.nextReminder {
-            Text("\(reminder.dueAt.formatted(date: .omitted, time: .shortened)) · \(reminder.title)")
+            Text("\(formattedDueText(reminder.dueAt, relativeTo: entry.date)) · \(reminder.title)")
         } else {
             Text("Yaklaşan hatırlatma yok")
         }
