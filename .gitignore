@@ -9,3 +9,6 @@ DerivedData/
 *.p12
 *.mobileprovision
 AuthKey_*.p8
+
+# Yerel yedekler
+yedek/
