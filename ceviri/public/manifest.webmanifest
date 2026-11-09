@@ -1,0 +1,29 @@
+{
+  "id": "./",
+  "name": "Çevirilerim",
+  "short_name": "Çevirilerim",
+  "description": "Metinleri onlarca dil arasında çevirin; geçmişinizi ve favorilerinizi cihazınızda saklayın.",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f4f7fb",
+  "theme_color": "#4f46e5",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "./app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
