@@ -1,5 +1,5 @@
 // Uygulamanın temel dosyalarını ilk açılışta önbelleğe alıp çevrimdışı erişim sağlar.
-const CACHE_NAME = 'hatirlaticilarim-ios-v16';
+const CACHE_NAME = 'hatirlaticilarim-ios-v17';
 const APP_FILES = [
   './',
   './index.html',

@@ -69,35 +69,15 @@ kullandığınız benzersiz Bundle ID ile eşleştirin. Her arşiv öncesinde
 `npm run ios:sync` komutunu çalıştırın. Xcode'dan `Product > Archive` ile dağıtım
 arşivini hazırlayıp Organizer üzerinden App Store Connect'e yükleyin.
 
-## GitHub Actions ile macOS derlemesi ve TestFlight
+## GitHub Actions ile macOS derlemesi
 
-`.github/workflows/ios-build.yml` GitHub'ın macOS makinelerinde çalışır:
-
-- **İmzasız derleme** her `main`/`claude/**` push'unda, `main`'e açılan PR'larda ve
-  Actions sekmesinden **Run workflow** ile çalışır. Cihaz ve simülatör için derler,
-  widget uzantısının pakete gömüldüğünü doğrular; `Hatirlaticilarim-imzasiz.ipa` ve
-  `Hatirlaticilarim-simulator.app.zip` dosyalarını çalıştırma sayfasından indirilebilir bırakır.
-- **İmzalı derleme ve TestFlight**, `v1.0.0` gibi bir `v*` etiketi push edildiğinde veya
-  **Run workflow** penceresinde *İmzalı derleyip TestFlight'a yükle* işaretlendiğinde çalışır.
-  Derleme numarası olarak GitHub çalıştırma numarası kullanılır; sürüm (`MARKETING_VERSION`)
-  Xcode projesinden gelir.
-
-TestFlight işi için depo ayarlarında **Settings > Secrets and variables > Actions**
-bölümüne şu gizli anahtarları ekleyin (eksikse iş uyarı verip atlanır):
-
-| Secret | Değer |
-| --- | --- |
-| `APPLE_TEAM_ID` | Apple Developer hesabındaki 10 karakterlik Team ID |
-| `APP_STORE_CONNECT_KEY_ID` | App Store Connect > Users and Access > Integrations > App Store Connect API'de oluşturulan anahtarın Key ID'si |
-| `APP_STORE_CONNECT_ISSUER_ID` | Aynı sayfadaki Issuer ID |
-| `APP_STORE_CONNECT_API_KEY_BASE64` | İndirilen `AuthKey_XXXX.p8` dosyasının base64 hâli: `base64 -i AuthKey_XXXX.p8 \| pbcopy` |
-| `IOS_SIGNING_CERTIFICATE_BASE64` *(isteğe bağlı)* | Keychain'den dışa aktarılan Apple Distribution `.p12` dosyasının base64 hâli |
-| `IOS_SIGNING_CERTIFICATE_PASSWORD` *(isteğe bağlı)* | `.p12` parolası |
-
-API anahtarı **Admin** rolüyle oluşturulmalıdır; böylece Xcode otomatik imzalama App ID'leri,
-App Group'u, sertifikaları ve provisioning profillerini kendisi oluşturup indirebilir.
-`.p12` verilirse mevcut sertifikanız kullanılır. Yüklemeden önce App Store Connect'te
-`com.hatirlaticilarim.app` Bundle ID'li uygulama kaydının oluşturulmuş olması gerekir.
+`.github/workflows/ios-build.yml` her `main`/`claude/**` push'unda, `main`'e açılan PR'larda
+ve Actions sekmesinden **Run workflow** ile GitHub'ın macOS makinesinde çalışır. Hatırlatıcılarım
+ve Çevirilerim'i cihaz ve simülatör için derler, widget uzantısının pakete gömüldüğünü
+doğrular ve telefona yan yüklenebilen `.ipa` dosyalarını indirilebilir bırakır.
+App Store olmadan kendi telefonuna kurmak için `TELEFONA-KURULUM.md`'ye bak. `pages.yml`
+ise iki uygulamanın web sürümünü `main`'e her push'ta GitHub Pages'e yayınlar
+(https://volkandoyran.github.io/hatirlatici/).
 
 ## Yayın öncesi tamamlanacaklar
 
