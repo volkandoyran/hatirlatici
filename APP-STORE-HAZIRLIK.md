@@ -35,30 +35,25 @@ derlemesi ve yerel eklenti entegrasyonu henüz test edilmemiştir.
 
 ## Ana ekran ve kilit ekranı widget'ları
 
-Üretilen Capacitor iOS projesini Xcode'da açtıktan sonra:
+Widget uzantısı Xcode projesine eklenmiştir; elle hedef oluşturmaya gerek yoktur:
 
-1. `File > New > Target > Widget Extension` ile `HatirlaticilarimWidgetExtension`
-   adlı bir widget uzantısı ekleyin. Xcode'un oluşturduğu örnek widget giriş dosyasını
-   uzantı hedefinden çıkarın; bu depodaki `ios-widget/HatirlaticilarimWidget.swift`
-   dosyasını projeye ekleyip yalnızca widget uzantısına dahil edin.
-2. Uygulama hedefinin ve widget uzantısının `Signing & Capabilities` bölümüne
-   **App Groups** yeteneğini ekleyin. Her iki hedefte de aynı
-   `group.com.hatirlaticilarim.app` grubunu seçin. Gerekirse Apple Developer
-   hesabında bu App Group'u oluşturup her iki App ID'ye bağlayın. Depodaki
-   `ios-widget/App.entitlements` ve `ios-widget/Widget.entitlements` dosyaları
-   bu grup kimliği için örnek yetki dosyalarıdır; Xcode'un oluşturduğu dosyalara
-   aynı App Group değerinin eklendiğini doğrulayın. Uygulamaya özel başka bir grup
-   kimliği seçerseniz bu yetki dosyalarında, WidgetBridge ve WidgetKit Swift
-   kaynaklarında aynı yeni kimliği kullanın.
-3. Hem uygulama hem widget uzantısının iOS dağıtım hedefini 16.0 veya üzeri yapın.
-   Uygulama hedefinin Bundle ID'si `capacitor.config.json` ile aynı olmalı;
-   uzantının Bundle ID'si uygulama kimliğinin sonuna `.widget` eklenerek benzersiz
-   yapılmalıdır.
-4. Widget uzantısını imzalayıp gerçek cihazda çalıştırın. Ana ekranda boş alana uzun
-   basıp `+` ile **Sıradaki Hatırlatma** widget'ını ekleyin. Kilit ekranında kilide
-   uzun basıp `Özelleştir` üzerinden dikdörtgen veya satır içi widget seçin.
+- `HatirlaticilarimWidgetExtension` hedefi `ios/App/HatirlaticilarimWidget/` klasöründeki
+  `HatirlaticilarimWidget.swift`, `Info.plist` ve yetki dosyasını kullanır; Bundle ID'si
+  `com.hatirlaticilarim.app.widget`, dağıtım hedefi iOS 16.0'dır.
+- Uzantı, `App` hedefine bağımlıdır ve `Embed Foundation Extensions` aşamasıyla
+  `App.app/PlugIns/` içine gömülür. Paylaşılan `App` şeması her iki hedefi birlikte derler.
+- Uygulama (`ios/App/App/App.entitlements`) ve widget aynı
+  `group.com.hatirlaticilarim.app` App Group'unu kullanır. Otomatik imzalama bu grubu
+  genellikle kendisi kaydeder; kaydetmezse Apple Developer hesabında App Group'u oluşturup
+  her iki App ID'ye bağlayın. Başka bir grup kimliği seçerseniz iki yetki dosyasında,
+  WidgetBridge ve WidgetKit Swift kaynaklarında aynı kimliği kullanın.
 
-Widget Extension hedefini ekledikten sonra her web/eklenti güncellemesinde
+Mac'te `npm run ios:open` ile projeyi açın, `Signing & Capabilities` bölümünde iki hedef
+için de geliştirici takımınızı seçin ve gerçek cihazda çalıştırın. Ana ekranda boş alana
+uzun basıp `+` ile **Sıradaki Hatırlatma** widget'ını ekleyin. Kilit ekranında kilide uzun
+basıp `Özelleştir` üzerinden dikdörtgen veya satır içi widget seçin.
+
+Her web/eklenti güncellemesinde
 `npm run ios:sync` çalıştırın; widget uzantısını Xcode'da seçip gerçek cihazda test edin.
 Ana ekran widget'ı sıradaki hatırlatmayı ve bugünkü bekleyen sayısını; kilit ekranı
 widget'ları sıradaki hatırlatmanın başlığını ve saatini gösterir. Başlık kilit
@@ -73,6 +68,36 @@ Xcode'da `Signing & Capabilities` bölümünden Apple geliştirici takımınız�
 kullandığınız benzersiz Bundle ID ile eşleştirin. Her arşiv öncesinde
 `npm run ios:sync` komutunu çalıştırın. Xcode'dan `Product > Archive` ile dağıtım
 arşivini hazırlayıp Organizer üzerinden App Store Connect'e yükleyin.
+
+## GitHub Actions ile macOS derlemesi ve TestFlight
+
+`.github/workflows/ios-build.yml` GitHub'ın macOS makinelerinde çalışır:
+
+- **İmzasız derleme** her `main`/`claude/**` push'unda, `main`'e açılan PR'larda ve
+  Actions sekmesinden **Run workflow** ile çalışır. Cihaz ve simülatör için derler,
+  widget uzantısının pakete gömüldüğünü doğrular; `Hatirlaticilarim-imzasiz.ipa` ve
+  `Hatirlaticilarim-simulator.app.zip` dosyalarını çalıştırma sayfasından indirilebilir bırakır.
+- **İmzalı derleme ve TestFlight**, `v1.0.0` gibi bir `v*` etiketi push edildiğinde veya
+  **Run workflow** penceresinde *İmzalı derleyip TestFlight'a yükle* işaretlendiğinde çalışır.
+  Derleme numarası olarak GitHub çalıştırma numarası kullanılır; sürüm (`MARKETING_VERSION`)
+  Xcode projesinden gelir.
+
+TestFlight işi için depo ayarlarında **Settings > Secrets and variables > Actions**
+bölümüne şu gizli anahtarları ekleyin (eksikse iş uyarı verip atlanır):
+
+| Secret | Değer |
+| --- | --- |
+| `APPLE_TEAM_ID` | Apple Developer hesabındaki 10 karakterlik Team ID |
+| `APP_STORE_CONNECT_KEY_ID` | App Store Connect > Users and Access > Integrations > App Store Connect API'de oluşturulan anahtarın Key ID'si |
+| `APP_STORE_CONNECT_ISSUER_ID` | Aynı sayfadaki Issuer ID |
+| `APP_STORE_CONNECT_API_KEY_BASE64` | İndirilen `AuthKey_XXXX.p8` dosyasının base64 hâli: `base64 -i AuthKey_XXXX.p8 \| pbcopy` |
+| `IOS_SIGNING_CERTIFICATE_BASE64` *(isteğe bağlı)* | Keychain'den dışa aktarılan Apple Distribution `.p12` dosyasının base64 hâli |
+| `IOS_SIGNING_CERTIFICATE_PASSWORD` *(isteğe bağlı)* | `.p12` parolası |
+
+API anahtarı **Admin** rolüyle oluşturulmalıdır; böylece Xcode otomatik imzalama App ID'leri,
+App Group'u, sertifikaları ve provisioning profillerini kendisi oluşturup indirebilir.
+`.p12` verilirse mevcut sertifikanız kullanılır. Yüklemeden önce App Store Connect'te
+`com.hatirlaticilarim.app` Bundle ID'li uygulama kaydının oluşturulmuş olması gerekir.
 
 ## Yayın öncesi tamamlanacaklar
 
