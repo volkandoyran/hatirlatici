@@ -1,8 +1,38 @@
 # Uygulamaları kendi iPhone'una kurma (App Store olmadan)
 
-Bu depodaki iki uygulama — **Hatırlatıcılarım** ve **Çevirilerim** — App Store'a
-gönderilmeden, ücretsiz bir Apple ID ile kendi iPhone'una kurulabilir. Mac gerekmez;
-Xcode derlemesini GitHub'ın macOS makinesi yapar, kurulumu Windows'tan yaparsın.
+## Bilgisayarsız: web uygulaması olarak (önerilen)
+
+İki uygulama ücretsiz GitHub Pages adresinde yayınlanır:
+
+**https://volkandoyran.github.io/hatirlatici/**
+
+1. Bu adresi iPhone'da **Safari** ile aç.
+2. **Hatırlatıcılarım**'a dokun, alttaki **Paylaş** düğmesine (kare ve yukarı ok)
+   dokun, **Ana Ekrana Ekle** > **Ekle**'yi seç.
+3. Geri dönüp **Çevirilerim** için tekrarla.
+
+Ana ekrandaki simgeler uygulamaları tam ekran açar. İlk açılıştan sonra internetsiz
+de çalışırlar, süreleri dolmaz, Apple ID ya da bilgisayar gerekmez. Veriler yalnızca
+telefonda saklanır. Yeni bir sürüm `main` dalına girdiğinde site kendiliğinden
+güncellenir; uygulamayı açtığında yeni sürüm yüklenir.
+
+Web sürümünün sınırları (iOS kısıtları):
+
+- **Widget yok**: iOS, web uygulamalarına ana ekran ya da kilit ekranı widget'ı izni vermez.
+- **Hatırlatma bildirimleri** yalnızca uygulama açıkken gelir. iOS web uygulamalarında
+  zamanlanmış yerel bildirime izin vermez.
+- Çevirilerim internet bağlantısı ister (çeviri MyMemory servisinden gelir).
+
+Widget ve uygulama kapalıyken bildirim istersen yerel `.ipa` sürümü gerekir.
+Aşağıdaki yöntem bunun için bir kez bilgisayar ister.
+
+---
+
+## Bilgisayarla: yerel `.ipa` sürümü
+
+Bu yöntemde Hatırlatıcılarım ve Çevirilerim'in yerel (native) sürümleri ücretsiz
+bir Apple ID ile kurulur. Mac gerekmez; Xcode derlemesini GitHub'ın macOS makinesi
+yapar, kurulumu Windows'tan yaparsın.
 
 ## 1. Derlenmiş `.ipa` dosyasını indir
 

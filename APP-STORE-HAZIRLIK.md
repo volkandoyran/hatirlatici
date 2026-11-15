@@ -75,7 +75,9 @@ arşivini hazırlayıp Organizer üzerinden App Store Connect'e yükleyin.
 ve Actions sekmesinden **Run workflow** ile GitHub'ın macOS makinesinde çalışır. Hatırlatıcılarım
 ve Çevirilerim'i cihaz ve simülatör için derler, widget uzantısının pakete gömüldüğünü
 doğrular ve telefona yan yüklenebilen `.ipa` dosyalarını indirilebilir bırakır.
-App Store olmadan kendi telefonuna kurmak için `TELEFONA-KURULUM.md`'ye bak.
+App Store olmadan kendi telefonuna kurmak için `TELEFONA-KURULUM.md`'ye bak. `pages.yml`
+ise iki uygulamanın web sürümünü `main`'e her push'ta GitHub Pages'e yayınlar
+(https://volkandoyran.github.io/hatirlatici/).
 
 ## Yayın öncesi tamamlanacaklar
 

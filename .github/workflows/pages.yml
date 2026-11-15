@@ -1,0 +1,69 @@
+name: Web uygulamalarını yayınla (GitHub Pages)
+
+on:
+  push:
+    branches: [ "main", "claude/**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Web paketlerini derle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Hatırlatıcılarım
+        run: |
+          npm install
+          npm run build
+
+      - name: Çevirilerim (test + derleme)
+        working-directory: ceviri
+        run: |
+          npm install
+          npm test
+          npm run build
+
+      - name: Siteyi birleştir
+        run: |
+          mkdir -p site
+          cp pages/index.html site/
+          cp -R dist site/hatirlaticilarim
+          cp -R ceviri/dist site/cevirilerim
+          touch site/.nojekyll
+          find site -maxdepth 2 | sort
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: GitHub Pages'e yükle
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.yayin.outputs.page_url }}
+    steps:
+      - name: Pages'i etkinleştir
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+        continue-on-error: true
+
+      - id: yayin
+        uses: actions/deploy-pages@v4

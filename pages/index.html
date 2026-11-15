@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Uygulamalarım</title>
+  <meta name="theme-color" content="#f4f7fb" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#11151c" media="(prefers-color-scheme: dark)" />
+  <style>
+    :root { --bg:#f4f7fb; --kart:#ffffff; --yazi:#16202c; --soluk:#5b6878; --vurgu:#2f6fed; --cizgi:#dde3ec; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#11151c; --kart:#1a2029; --yazi:#e8edf3; --soluk:#9aa6b5; --vurgu:#6d9bff; --cizgi:#2a323e; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--yazi);
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: max(24px, env(safe-area-inset-top)) 16px 40px; }
+    main { max-width: 560px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; margin: 0 0 4px; }
+    p.alt { color: var(--soluk); margin: 0 0 24px; }
+    .kart { display:flex; gap:16px; align-items:center; background:var(--kart); border:1px solid var(--cizgi);
+      border-radius:18px; padding:16px; margin-bottom:12px; text-decoration:none; color:inherit; }
+    .kart img { width:60px; height:60px; border-radius:14px; flex:none; }
+    .kart strong { display:block; font-size:1.1rem; }
+    .kart span { color:var(--soluk); font-size:.92rem; }
+    .kart .ok { margin-left:auto; color:var(--vurgu); font-size:1.4rem; }
+    h2 { font-size:1.1rem; margin:32px 0 8px; }
+    ol { padding-left: 1.3em; margin: 0; }
+    li { margin-bottom: 8px; }
+    .not { color: var(--soluk); font-size: .9rem; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Uygulamalarım</h1>
+    <p class="alt">iPhone'a bilgisayarsız kurulum</p>
+
+    <a class="kart" href="./hatirlaticilarim/">
+      <img src="./hatirlaticilarim/apple-touch-icon.png" alt="" />
+      <div><strong>Hatırlatıcılarım</strong><span>Görev ve hatırlatma takibi</span></div>
+      <div class="ok">›</div>
+    </a>
+    <a class="kart" href="./cevirilerim/">
+      <img src="./cevirilerim/apple-touch-icon.png" alt="" />
+      <div><strong>Çevirilerim</strong><span>Metin çevirisi</span></div>
+      <div class="ok">›</div>
+    </a>
+
+    <h2>Ana ekrana nasıl eklenir?</h2>
+    <ol>
+      <li>Bu sayfayı iPhone'da <strong>Safari</strong> ile açın.</li>
+      <li>Yukarıdan bir uygulamaya dokunun.</li>
+      <li>Alttaki <strong>Paylaş</strong> düğmesine (kare ve yukarı ok) dokunun.</li>
+      <li><strong>Ana Ekrana Ekle</strong>'yi seçip <strong>Ekle</strong>'ye dokunun.</li>
+      <li>Diğer uygulama için tekrarlayın.</li>
+    </ol>
+    <p class="not">Uygulamalar ana ekrandan tam ekran açılır, ilk açılıştan sonra internetsiz de çalışır
+      ve süreleri dolmaz. Verileriniz yalnızca telefonunuzda saklanır.</p>
+  </main>
+</body>
+</html>
