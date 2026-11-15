@@ -12,4 +12,4 @@ Kısıtlar: sunucu yok, veriler yalnızca cihazda; web sürümünde zamanlanmı�
 
 Bu konsepte uygun, kullanıcıya en çok değer katacak 10 yeni özellik öner. Her biri için:
 1) kısa ad, 2) bir cümlelik açıklama, 3) web sürümünde de çalışıp çalışmayacağı, 4) uygulama zorluğu (kolay/orta/zor).
-Ayrıca widget için 3 ayrı iyileştirme fikri ver. Kısa ve maddeli yaz, Türkçe yanıt ver.
+Ayrıca iOS widget'ı için 3 ayrı iyileştirme fikri ver. Kısa ve maddeli yaz, Türkçe yanıt ver.

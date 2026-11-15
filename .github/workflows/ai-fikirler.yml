@@ -24,7 +24,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.request, urllib.error
           istem = open('.github/ai/istem.md', encoding='utf-8').read()
           tok = os.environ['GITHUB_TOKEN']
 
@@ -37,30 +37,19 @@ jobs:
           gh = {'Authorization': f'Bearer {tok}', 'Accept': 'application/vnd.github+json',
                 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'}
           sonuc = []
-          try:
-              katalog = json.loads(istek('https://models.github.ai/catalog/models', basliklar=gh))
-              print('Katalog:', ', '.join(m['id'] for m in katalog))
-          except Exception as e:
-              katalog = []; print('Katalog alınamadı:', e)
-
-          # Farklı yayıncılardan birer sohbet modeli seç.
-          tercih = ['openai/gpt-4.1', 'openai/gpt-4.1-mini', 'meta/', 'mistral-ai/', 'deepseek/', 'microsoft/', 'xai/', 'cohere/']
-          secilen, yayincilar = [], set()
-          for t in tercih:
-              for m in katalog:
-                  yay = m['id'].split('/')[0]
-                  if m['id'].startswith(t) and yay not in yayincilar and 'embedding' not in m['id'].lower() \
-                     and 'text' in (m.get('supported_output_modalities') or ['text']):
-                      secilen.append(m['id']); yayincilar.add(yay); break
-          print('Seçilen modeller:', secilen)
-
-          for model in secilen[:5]:
+          # Farklı yayıncılardan sohbet modelleri; bulunmayan model atlanır.
+          secilen = ['openai/gpt-4.1', 'meta/Llama-4-Maverick-17B-128E-Instruct-FP8',
+                     'mistral-ai/mistral-medium-2505', 'deepseek/DeepSeek-V3-0324',
+                     'xai/grok-3-mini', 'microsoft/Phi-4']
+          for model in secilen:
               try:
                   yanit = json.loads(istek('https://models.github.ai/inference/chat/completions',
                       {'model': model, 'messages': [{'role': 'user', 'content': istem}], 'max_tokens': 1800}, gh))
                   sonuc.append((f'GitHub Models · {model}', yanit['choices'][0]['message']['content']))
+              except urllib.error.HTTPError as e:
+                  print(model, 'HATA', e.code, e.read()[:300])
               except Exception as e:
-                  sonuc.append((f'GitHub Models · {model}', f'HATA: {e}'))
+                  print(model, 'HATA', e)
 
           try:
               metin = istek('https://text.pollinations.ai/openai',
