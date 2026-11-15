@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ "claude/**" ]
-    paths: [ ".github/ai/istem.md", ".github/workflows/ai-fikirler.yml" ]
+    paths: [ ".github/ai/istem.md" ]
 
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Modellere sor
         env:
@@ -70,7 +70,7 @@ jobs:
           print(rapor)
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ai-oneriler-${{ github.run_number }}
           path: cikti/oneriler.md
