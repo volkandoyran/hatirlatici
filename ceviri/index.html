@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="description" content="Metinleri onlarca dil arasında çevirin; geçmişinizi ve favorilerinizi cihazınızda saklayın." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Çevirilerim" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/app-icon.svg" />
+    <title>Çevirilerim</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Cebinizdeki tercüman</p>
+          <h1>Çevirilerim</h1>
+          <p class="app-intro">Metninizi yazın, dili seçin, çevirin. Geçmişiniz ve favorileriniz bu cihazda saklanır.</p>
+        </div>
+        <p id="connection-label" class="connection-label" role="status" aria-live="polite"></p>
+      </header>
+
+      <details class="app-menu" id="app-menu">
+        <summary class="app-menu-summary">
+          <span class="app-menu-icon" aria-hidden="true">☰</span>
+          <span class="app-menu-label">Menü</span>
+          <span class="app-menu-hint" id="app-menu-hint">Bölüm seçin</span>
+          <span class="category-chevron" aria-hidden="true"></span>
+        </summary>
+        <nav class="category-menu" aria-label="Uygulama bölümleri">
+          <details class="menu-group">
+            <summary>Çeviri</summary>
+            <button class="menu-category" type="button" data-open-page="translate" aria-current="page">
+              <span class="category-icon" aria-hidden="true">⇄</span>
+              <span class="category-summary">
+                <strong>Çevir</strong>
+                <span>Metin yazın, dili seçin ve çevirin</span>
+              </span>
+            </button>
+            <button class="menu-category" type="button" data-open-page="history">
+              <span class="category-icon" aria-hidden="true">↺</span>
+              <span class="category-summary">
+                <strong>Geçmiş ve Favoriler</strong>
+                <span>Önceki çevirileri bulun ve yeniden açın</span>
+              </span>
+            </button>
+          </details>
+
+          <details class="menu-group">
+            <summary>Kişiselleştirme</summary>
+            <button class="menu-category" type="button" data-open-page="settings">
+              <span class="category-icon" aria-hidden="true">⚙</span>
+              <span class="category-summary">
+                <strong>Ayarlar</strong>
+                <span>Tema, çeviri motoru, kota ve gizlilik</span>
+              </span>
+            </button>
+          </details>
+        </nav>
+      </details>
+
+      <main id="app-content">
+        <section class="page-view category-content" data-page-panel="translate" aria-labelledby="translate-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Anında çeviri</p>
+              <h2 id="translate-title">Çevir</h2>
+            </div>
+          </div>
+
+          <div class="lang-bar panel">
+            <label class="lang-field">
+              <span>Kaynak dil</span>
+              <select id="source-language" aria-describedby="detected-language"></select>
+            </label>
+            <button id="swap-btn" class="swap-btn" type="button" aria-label="Dilleri değiştir" title="Dilleri değiştir">⇄</button>
+            <label class="lang-field">
+              <span>Hedef dil</span>
+              <select id="target-language"></select>
+            </label>
+          </div>
+
+          <div class="translate-layout">
+            <section class="panel text-panel" aria-labelledby="source-panel-title">
+              <div class="text-panel-header">
+                <h3 id="source-panel-title">Metin</h3>
+                <p id="detected-language" class="detected-language" aria-live="polite"></p>
+              </div>
+              <textarea
+                id="source-text"
+                class="text-area"
+                rows="7"
+                maxlength="5000"
+                dir="auto"
+                placeholder="Çevrilecek metni yazın veya yapıştırın..."
+                aria-labelledby="source-panel-title"
+                aria-describedby="char-counter translate-hint"
+              ></textarea>
+              <div class="panel-footer">
+                <span id="char-counter" class="char-counter">0 / 5.000</span>
+                <div class="icon-actions">
+                  <button id="speak-source-btn" class="icon-btn" type="button" aria-label="Metni seslendir" title="Seslendir">🔊</button>
+                  <button id="clear-source-btn" class="icon-btn" type="button" aria-label="Metni temizle" title="Temizle">✕</button>
+                </div>
+              </div>
+              <div class="translate-actions">
+                <button id="translate-btn" class="primary-btn" type="button">Çevir</button>
+                <p id="translate-hint" class="settings-note">Kısayol: Ctrl + Enter (Mac'te ⌘ + Enter)</p>
+              </div>
+            </section>
+
+            <section class="panel text-panel output-panel" aria-labelledby="output-panel-title">
+              <div class="text-panel-header">
+                <h3 id="output-panel-title">Çeviri</h3>
+                <p id="engine-label" class="engine-label"></p>
+              </div>
+              <div id="output-text" class="output-text is-empty" dir="auto" tabindex="0" aria-live="polite" aria-labelledby="output-panel-title">Çeviri burada görünecek.</div>
+              <div class="panel-footer">
+                <span id="translate-status" class="translate-status" role="status" aria-live="polite"></span>
+                <div class="icon-actions">
+                  <button id="favorite-btn" class="icon-btn" type="button" aria-pressed="false" aria-label="Favorilere ekle" title="Favorilere ekle" disabled>☆</button>
+                  <button id="speak-output-btn" class="icon-btn" type="button" aria-label="Çeviriyi seslendir" title="Seslendir" disabled>🔊</button>
+                  <button id="copy-btn" class="icon-btn" type="button" aria-label="Çeviriyi kopyala" title="Kopyala" disabled>⧉</button>
+                  <button id="share-btn" class="icon-btn hidden" type="button" aria-label="Çeviriyi paylaş" title="Paylaş" disabled>⇪</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel recent-panel" aria-labelledby="recent-title">
+            <div class="list-header">
+              <div>
+                <p class="eyebrow">Son çeviriler</p>
+                <h3 id="recent-title">Kaldığınız yerden devam edin</h3>
+              </div>
+              <button class="text-btn" type="button" data-open-page="history">Tüm geçmişi gör</button>
+            </div>
+            <ul id="recent-list" class="history-list"></ul>
+          </section>
+        </section>
+
+        <section class="page-view category-content" data-page-panel="history" aria-labelledby="history-title" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Bul, yeniden aç, sabitle</p>
+              <h2 id="history-title">Geçmiş ve Favoriler</h2>
+            </div>
+          </div>
+          <section class="panel">
+            <div class="list-header list-header-stacked">
+              <div class="filters" aria-label="Geçmiş süzgeçleri">
+                <button class="filter-btn active" type="button" data-filter="all" aria-pressed="true">Tümü</button>
+                <button class="filter-btn" type="button" data-filter="favorites" aria-pressed="false">Favoriler</button>
+              </div>
+              <p id="history-count" class="settings-note"></p>
+            </div>
+            <div class="toolbar">
+              <input id="history-search" type="search" placeholder="Metinde veya çeviride ara..." aria-label="Geçmişte ara" />
+              <button id="clear-history-btn" class="secondary-btn small-btn" type="button">Favori olmayanları temizle</button>
+            </div>
+            <ul id="history-list" class="history-list"></ul>
+          </section>
+        </section>
+
+        <section class="page-view category-content" data-page-panel="settings" aria-labelledby="settings-title" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Kişisel tercihler</p>
+              <h2 id="settings-title">Ayarlar</h2>
+            </div>
+          </div>
+          <section class="panel settings-panel">
+            <div class="setting-row">
+              <div>
+                <h3>Uygulama bilgisi</h3>
+                <p id="install-status" class="settings-note">Uygulama kullanım bilgisi yükleniyor.</p>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <h3>Renk teması</h3>
+                <p class="settings-note">Uygulamanın açık veya koyu görünümünü seçin.</p>
+              </div>
+              <button id="theme-toggle-btn" class="secondary-btn" type="button">Koyu temayı aç</button>
+            </div>
+            <div class="setting-row setting-row-stacked">
+              <div>
+                <h3 id="engine-setting-title">Çeviri motoru</h3>
+                <p id="engine-status" class="settings-note"></p>
+              </div>
+              <div class="radio-group" role="radiogroup" aria-labelledby="engine-setting-title">
+                <label class="radio-option">
+                  <input type="radio" name="engine" value="auto" />
+                  <span>
+                    <strong>Otomatik</strong>
+                    <span>Tarayıcıda indirilmiş cihaz içi model varsa onu kullanır, yoksa çevrimiçi servise bağlanır.</span>
+                  </span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="engine" value="online" />
+                  <span>
+                    <strong>Yalnızca çevrimiçi</strong>
+                    <span>Her çeviri MyMemory servisinde yapılır.</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="setting-row setting-row-stacked">
+              <div>
+                <h3>Günlük kullanım</h3>
+                <p class="settings-note">MyMemory ücretsiz kullanımı günlük karakterle sınırlar. Sayaç bu cihazda tutulur ve yaklaşıktır; servis sınırı bağlantı adresinize göre uygular.</p>
+              </div>
+              <div class="usage-box">
+                <meter id="usage-meter" min="0" max="5000" low="3500" high="4500" optimum="0" value="0" aria-labelledby="usage-text"></meter>
+                <p id="usage-text" class="usage-text"></p>
+              </div>
+              <form id="email-form" class="email-form" novalidate>
+                <label for="quota-email">
+                  E-posta (isteğe bağlı)
+                  <input id="quota-email" type="email" autocomplete="email" inputmode="email" placeholder="ornek@eposta.com" />
+                </label>
+                <p class="settings-note">E-posta eklerseniz günlük sınır 5.000 yerine 50.000 karaktere çıkar. Adres yalnızca çeviri isteklerinde MyMemory'ye gönderilir ve bu cihazda saklanır.</p>
+                <div class="form-actions">
+                  <button class="secondary-btn" type="submit">E-postayı kaydet</button>
+                  <button id="clear-email-btn" class="text-btn" type="button">Kaldır</button>
+                </div>
+                <p id="email-status" class="settings-note" role="status" aria-live="polite"></p>
+              </form>
+            </div>
+            <div class="setting-row">
+              <div>
+                <h3>Gizlilik</h3>
+                <p id="consent-status" class="settings-note"></p>
+              </div>
+              <button id="revoke-consent-btn" class="secondary-btn" type="button">İzni geri al</button>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <p>Çevrimiçi çeviriler <a href="https://mymemory.translated.net/" target="_blank" rel="noopener noreferrer">MyMemory</a> tarafından sağlanır. Makine çevirisi hatalı olabilir; önemli metinleri kontrol ettirin.</p>
+      </footer>
+    </div>
+
+    <dialog
+      id="consent-dialog"
+      class="permission-dialog"
+      aria-labelledby="consent-title"
+      aria-describedby="consent-description"
+    >
+      <p class="eyebrow">Gizlilik ve izin</p>
+      <h2 id="consent-title">Metniniz çeviri servisine gönderilecek</h2>
+      <p id="consent-description" class="settings-note">
+        Çeviri için yazdığınız metin, internet üzerinden MyMemory (Translated S.r.l.) sunucularına gönderilir.
+        Parola, kimlik numarası, sağlık bilgisi gibi hassas bilgileri çevirmeyin. Çeviri geçmişiniz yalnızca bu
+        cihazda saklanır. “Kabul et ve çevir” ile devam edebilir, “Şimdi değil” ile hiçbir şey göndermeden
+        vazgeçebilirsiniz. İzni Ayarlar bölümünden geri alabilirsiniz.
+      </p>
+      <div class="permission-dialog-actions">
+        <button id="consent-cancel-btn" class="secondary-btn" type="button">Şimdi değil</button>
+        <button id="consent-accept-btn" class="primary-btn" type="button">Kabul et ve çevir</button>
+      </div>
+    </dialog>
+
+    <template id="history-item-template">
+      <li class="history-item">
+        <div class="history-copy">
+          <div class="history-topline">
+            <span class="badge lang-badge"></span>
+            <span class="history-date"></span>
+          </div>
+          <p class="history-source"></p>
+          <p class="history-translation"></p>
+        </div>
+        <div class="history-actions">
+          <button class="open-btn edit-btn" type="button">Aç</button>
+          <button class="favorite-toggle icon-btn" type="button" aria-pressed="false">☆</button>
+          <button class="delete-btn" type="button">Sil</button>
+        </div>
+      </li>
+    </template>
+
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

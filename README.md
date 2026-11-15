@@ -45,6 +45,12 @@ yüklemek için macOS, Xcode ve CocoaPods gerekir. Widget Extension hedefi Xcode
 ayrıca yapılandırılmalıdır. Adımlar ve yayın kısıtları
 [App Store hazırlık belgesinde](./APP-STORE-HAZIRLIK.md) açıklanmıştır.
 
+## Çeviri uygulaması (Çevirilerim)
+
+`ceviri/` klasöründe bu uygulamanın altyapısı ve tasarım dili taban alınarak hazırlanan,
+bağımsız bir çeviri uygulaması bulunur. Kendi `package.json` dosyası vardır; komutlar o
+klasörde çalıştırılır. Ayrıntılar [ceviri/README.md](./ceviri/README.md) dosyasındadır.
+
 ## Yedekler
 
 - `yedek/orijinal/`: Değişiklik öncesindeki kaynak kopyası

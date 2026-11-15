@@ -1,0 +1,14 @@
+{
+  "appId": "com.cevirilerim.app",
+  "appName": "Çevirilerim",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#f4f7fb"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
