@@ -6,10 +6,17 @@
 
 **https://volkandoyran.github.io/hatirlatici/**
 
-1. Bu adresi iPhone'da **Safari** ile aç.
-2. **Hatırlatıcılarım**'a dokun, alttaki **Paylaş** düğmesine (kare ve yukarı ok)
-   dokun, **Ana Ekrana Ekle** > **Ekle**'yi seç.
-3. Geri dönüp **Çevirilerim** için tekrarla.
+1. Bu adresi iPhone'da **Safari** ile aç ve **İkisini birden kur**'a (ya da bir
+   uygulamanın yanındaki **Kur**'a) dokun.
+2. Profil indirme uyarısında **İzin Ver** > **Kapat**.
+3. **Ayarlar**'ın en üstündeki **Profil İndirildi**'ye dokun (görünmezse
+   *Ayarlar > Genel > VPN ve Aygıt Yönetimi*), **Yükle**'ye bas ve telefon parolanı gir.
+4. Simgeler ana ekrana gelir.
+
+Profil imzasız olduğu için iOS "Doğrulanmadı" yazar; bu beklenen bir durumdur. Profil
+yalnızca ana ekrana uygulamaya giden tam ekran bir simge ekler, başka ayar değiştirmez ve
+*VPN ve Aygıt Yönetimi*'nden kaldırılabilir. Profil istemezsen uygulamayı Safari'de açıp
+**Paylaş > Ana Ekrana Ekle** de diyebilirsin.
 
 Ana ekrandaki simgeler uygulamaları tam ekran açar. İlk açılıştan sonra internetsiz
 de çalışırlar, süreleri dolmaz, Apple ID ya da bilgisayar gerekmez. Veriler yalnızca

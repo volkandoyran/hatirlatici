@@ -28,6 +28,13 @@
     ol { padding-left: 1.3em; margin: 0; }
     li { margin-bottom: 8px; }
     .not { color: var(--soluk); font-size: .9rem; margin-top: 16px; }
+    .dugme { display:block; text-align:center; background:var(--vurgu); color:#fff; font-weight:600;
+      text-decoration:none; border-radius:14px; padding:14px 16px; margin: 0 0 12px; }
+    .kart .kur { margin-left:auto; flex:none; background:var(--vurgu); color:#fff; font-weight:600;
+      font-size:.9rem; text-decoration:none; border-radius:999px; padding:8px 14px; }
+    .kart .ac { color:var(--vurgu); font-size:.9rem; text-decoration:none; }
+    details { margin-top: 24px; background:var(--kart); border:1px solid var(--cizgi); border-radius:14px; padding:12px 16px; }
+    summary { font-weight:600; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -35,25 +42,45 @@
     <h1>Uygulamalarım</h1>
     <p class="alt">iPhone'a bilgisayarsız kurulum</p>
 
-    <a class="kart" href="./hatirlaticilarim/">
-      <img src="./hatirlaticilarim/apple-touch-icon.png" alt="" />
-      <div><strong>Hatırlatıcılarım</strong><span>Görev ve hatırlatma takibi</span></div>
-      <div class="ok">›</div>
-    </a>
-    <a class="kart" href="./cevirilerim/">
-      <img src="./cevirilerim/apple-touch-icon.png" alt="" />
-      <div><strong>Çevirilerim</strong><span>Metin çevirisi</span></div>
-      <div class="ok">›</div>
-    </a>
+    <a class="dugme" href="./uygulamalarim.mobileconfig">İkisini birden kur</a>
 
-    <h2>Ana ekrana nasıl eklenir?</h2>
+    <div class="kart">
+      <img src="./hatirlaticilarim/apple-touch-icon.png" alt="" />
+      <div><strong>Hatırlatıcılarım</strong><span>Görev ve hatırlatma takibi</span><br />
+        <a class="ac" href="./hatirlaticilarim/">Kurmadan aç</a></div>
+      <a class="kur" href="./hatirlaticilarim.mobileconfig">Kur</a>
+    </div>
+    <div class="kart">
+      <img src="./cevirilerim/apple-touch-icon.png" alt="" />
+      <div><strong>Çevirilerim</strong><span>Metin çevirisi</span><br />
+        <a class="ac" href="./cevirilerim/">Kurmadan aç</a></div>
+      <a class="kur" href="./cevirilerim.mobileconfig">Kur</a>
+    </div>
+
+    <h2>Profille kurulum</h2>
     <ol>
-      <li>Bu sayfayı iPhone'da <strong>Safari</strong> ile açın.</li>
-      <li>Yukarıdan bir uygulamaya dokunun.</li>
-      <li>Alttaki <strong>Paylaş</strong> düğmesine (kare ve yukarı ok) dokunun.</li>
-      <li><strong>Ana Ekrana Ekle</strong>'yi seçip <strong>Ekle</strong>'ye dokunun.</li>
-      <li>Diğer uygulama için tekrarlayın.</li>
+      <li>Bu sayfayı iPhone'da <strong>Safari</strong> ile açıp <strong>Kur</strong>'a dokunun.</li>
+      <li>“Bu web sitesi bir yapılandırma profili indirmeye çalışıyor” uyarısında <strong>İzin Ver</strong>'e, ardından <strong>Kapat</strong>'a dokunun.</li>
+      <li><strong>Ayarlar</strong>'ı açın. En üstte <strong>Profil İndirildi</strong> yazar; ona dokunun.
+        (Görünmezse: Ayarlar &gt; Genel &gt; VPN ve Aygıt Yönetimi.)</li>
+      <li>Sağ üstten <strong>Yükle</strong>'ye dokunun, telefon parolanızı girin, tekrar <strong>Yükle</strong> ve <strong>Bitti</strong> deyin.</li>
+      <li>Uygulama simgesi ana ekranda belirir.</li>
     </ol>
+    <p class="not">Profil imzasız olduğu için iOS “Doğrulanmadı” yazar. Bu normaldir: profil yalnızca
+      ana ekrana bu sayfaya giden bir simge ekler; telefonunuzda başka hiçbir ayarı değiştirmez ve
+      Ayarlar &gt; Genel &gt; VPN ve Aygıt Yönetimi'nden tek dokunuşla kaldırılabilir.</p>
+    <p class="not">Safari profili açmak yerine indirirse: <strong>Dosyalar</strong> uygulamasında
+      <strong>İndirilenler</strong> klasöründeki <code>.mobileconfig</code> dosyasına dokunun, sonra 3. adımdan devam edin.</p>
+
+    <details>
+      <summary>Profilsiz yöntem: Ana Ekrana Ekle</summary>
+      <ol>
+        <li>Yukarıdan <strong>Kurmadan aç</strong>'a dokunun.</li>
+        <li>Alttaki <strong>Paylaş</strong> düğmesine (kare ve yukarı ok) dokunun.</li>
+        <li><strong>Ana Ekrana Ekle</strong>'yi seçip <strong>Ekle</strong>'ye dokunun.</li>
+      </ol>
+    </details>
+
     <p class="not">Uygulamalar ana ekrandan tam ekran açılır, ilk açılıştan sonra internetsiz de çalışır
       ve süreleri dolmaz. Verileriniz yalnızca telefonunuzda saklanır.</p>
   </main>
