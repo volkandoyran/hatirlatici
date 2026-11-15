@@ -60,3 +60,8 @@ Kaynakta değişiklik yaparken bu iki yedek düzenini koruyun.
   oluşturduktan sonra planlanır.
 
 **Açıklama:** Bu uygulama yapay zekâ desteğiyle geliştirilmiştir.
+
+## Donanım Teşhis Aracı
+
+Açılmayan bilgisayarlarda arızalı parçayı bulmak için ayrı bir araç
+[`donanim-teshis/`](donanim-teshis/README.md) klasöründedir.
