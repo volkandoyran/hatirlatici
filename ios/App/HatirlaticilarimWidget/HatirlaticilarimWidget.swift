@@ -18,29 +18,51 @@ private let widgetAppGroupIdentifier: String = {
 private let widgetRemindersKey = "widget-reminders-v1"
 
 // Ana uygulamadan gelen widget görünümünde gereken sınırlı veri modeli.
+private enum ReminderPriority: String {
+    case normal, important, urgent
+
+    var color: Color {
+        switch self {
+        case .urgent: return .red
+        case .important: return .orange
+        case .normal: return .accentColor
+        }
+    }
+
+    var label: String? {
+        switch self {
+        case .urgent: return "Acil"
+        case .important: return "Önemli"
+        case .normal: return nil
+        }
+    }
+}
+
 private struct ReminderWidgetItem {
     let title: String
     let dueAt: Date
+    let priority: ReminderPriority
 }
 
 private struct ReminderWidgetEntry: TimelineEntry {
     let date: Date
-    let nextReminder: ReminderWidgetItem?
+    /// Girişin saatinden sonraki ilk birkaç hatırlatma (orta boy widget en fazla 3 gösterir).
+    let upcoming: [ReminderWidgetItem]
     let todayCount: Int
 
-    static var empty: ReminderWidgetEntry {
-        ReminderWidgetEntry(date: .now, nextReminder: nil, todayCount: 0)
-    }
+    var nextReminder: ReminderWidgetItem? { upcoming.first }
 }
 
 private struct ReminderWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> ReminderWidgetEntry {
-        ReminderWidgetEntry(
-            date: .now,
-            nextReminder: ReminderWidgetItem(
-                title: "Örnek hatırlatma",
-                dueAt: Calendar.current.date(byAdding: .hour, value: 2, to: .now) ?? .now
-            ),
+        let now = Date.now
+        return ReminderWidgetEntry(
+            date: now,
+            upcoming: [
+                ReminderWidgetItem(title: "Örnek hatırlatma", dueAt: now.addingTimeInterval(2 * 3600), priority: .important),
+                ReminderWidgetItem(title: "Su iç", dueAt: now.addingTimeInterval(4 * 3600), priority: .normal),
+                ReminderWidgetItem(title: "Fatura öde", dueAt: now.addingTimeInterval(26 * 3600), priority: .urgent),
+            ],
             todayCount: 3
         )
     }
@@ -100,7 +122,8 @@ private struct ReminderWidgetProvider: TimelineProvider {
                 return nil
             }
 
-            return ReminderWidgetItem(title: title, dueAt: dueAt)
+            let priority = ReminderPriority(rawValue: reminder["priority"] as? String ?? "") ?? .normal
+            return ReminderWidgetItem(title: title, dueAt: dueAt, priority: priority)
         }
         .sorted { $0.dueAt < $1.dueAt }
     }
@@ -114,7 +137,7 @@ private struct ReminderWidgetProvider: TimelineProvider {
 
         return ReminderWidgetEntry(
             date: date,
-            nextReminder: pendingReminders.first { $0.dueAt > date },
+            upcoming: Array(pendingReminders.lazy.filter { $0.dueAt > date }.prefix(3)),
             todayCount: todayCount
         )
     }
@@ -139,51 +162,123 @@ private struct ReminderWidgetView: View {
                 inlineContent
             case .accessoryRectangular:
                 lockScreenContent
+            case .accessoryCircular:
+                circularContent
+            case .systemMedium:
+                mediumContent
             default:
-                homeScreenContent
+                smallContent
             }
         }
         .widgetBackground
     }
 
-    private var homeScreenContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Hatırlatıcılarım", systemImage: "checkmark.circle.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tint)
-                .lineLimit(1)
+    private var header: some View {
+        Label("Hatırlatıcılarım", systemImage: "checkmark.circle.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.tint)
+            .lineLimit(1)
+    }
 
+    private var todayFooter: some View {
+        Text("Bugün: \(entry.todayCount) bekleyen")
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+    }
+
+    /// Bir saatten az kaldıysa canlı geri sayım, aksi hâlde saat/tarih gösterilir.
+    @ViewBuilder
+    private func dueText(_ reminder: ReminderWidgetItem) -> some View {
+        if reminder.dueAt.timeIntervalSince(entry.date) < 3600 {
+            Text(reminder.dueAt, style: .relative)
+        } else {
+            Text(formattedDueText(reminder.dueAt, relativeTo: entry.date))
+        }
+    }
+
+    private var smallContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            header
+            Spacer(minLength: 0)
             if let reminder = entry.nextReminder {
+                if let label = reminder.priority.label {
+                    Text(label.uppercased())
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(reminder.priority.color)
+                }
                 Text(reminder.title)
                     .font(.headline)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .minimumScaleFactor(0.8)
                 Label {
-                    Text(formattedDueText(reminder.dueAt, relativeTo: entry.date))
+                    dueText(reminder)
                 } icon: {
                     Image(systemName: "clock")
                 }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Text("Bugün: \(entry.todayCount) bekleyen")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             } else {
-                Spacer(minLength: 0)
-                Text("Yaklaşan hatırlatma yok")
-                    .font(.headline)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Yeni bir hatırlatma ekleyin.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Text("Bugün: \(entry.todayCount) bekleyen")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
+                emptyState
             }
+            Spacer(minLength: 0)
+            todayFooter
         }
         .padding()
+    }
+
+    private var mediumContent: some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                header
+                Spacer(minLength: 0)
+                Text("\(entry.todayCount)")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .minimumScaleFactor(0.6)
+                Text("bugün bekleyen")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: 110, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 8) {
+                if entry.upcoming.isEmpty {
+                    Spacer(minLength: 0)
+                    emptyState
+                    Spacer(minLength: 0)
+                } else {
+                    ForEach(Array(entry.upcoming.enumerated()), id: \.offset) { _, reminder in
+                        HStack(alignment: .top, spacing: 8) {
+                            Capsule()
+                                .fill(reminder.priority.color)
+                                .frame(width: 4, height: 30)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(reminder.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
+                                dueText(reminder)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding()
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Yaklaşan hatırlatma yok")
+                .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Yeni bir hatırlatma ekleyin.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var lockScreenContent: some View {
@@ -195,7 +290,7 @@ private struct ReminderWidgetView: View {
                 Text(reminder.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text(formattedDueText(reminder.dueAt, relativeTo: entry.date))
+                dueText(reminder)
                     .font(.caption)
             } else {
                 Text("Yaklaşan hatırlatma yok")
@@ -203,6 +298,20 @@ private struct ReminderWidgetView: View {
                     .lineLimit(2)
             }
         }
+    }
+
+    private var circularContent: some View {
+        ZStack {
+            AccessoryWidgetBackground()
+            VStack(spacing: 0) {
+                Text("\(entry.todayCount)")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .minimumScaleFactor(0.6)
+                Text("bugün")
+                    .font(.system(size: 9, weight: .medium))
+            }
+        }
+        .widgetAccentable()
     }
 
     @ViewBuilder
@@ -238,12 +347,13 @@ struct HatirlaticilarimWidget: Widget {
             ReminderWidgetView(entry: entry)
         }
         .configurationDisplayName("Sıradaki Hatırlatma")
-        .description("Yaklaşan hatırlatmayı ve bugünkü bekleyen sayısını gösterir.")
+        .description("Yaklaşan hatırlatmaları ve bugünkü bekleyen sayısını gösterir.")
         .supportedFamilies([
             .systemSmall,
             .systemMedium,
             .accessoryInline,
             .accessoryRectangular,
+            .accessoryCircular,
         ])
     }
 }
