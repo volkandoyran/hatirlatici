@@ -3,20 +3,9 @@ name: iOS Xcode Build
 on:
   push:
     branches: [ "main", "claude/**" ]
-    tags: [ "v*", "ceviri-v*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-    inputs:
-      testflight:
-        description: "İmzalı derleyip TestFlight'a yükle"
-        type: boolean
-        default: false
-      uygulama:
-        description: "TestFlight'a yüklenecek uygulama"
-        type: choice
-        options: [ hepsi, hatirlatici, ceviri ]
-        default: hepsi
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -24,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    name: İmzasız derleme - ${{ matrix.ad }}
+    name: iOS derlemesi - ${{ matrix.ad }}
     runs-on: macos-latest
     timeout-minutes: 45
     strategy:
@@ -36,11 +25,13 @@ jobs:
             dizin: .
             widget: true
             test: false
+            yetki: App/App.entitlements
           - kimlik: ceviri
             ad: Cevirilerim
             dizin: ceviri
             widget: false
             test: true
+            yetki: ""
     defaults:
       run:
         working-directory: ${{ matrix.dizin }}
@@ -112,13 +103,45 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" \
             build/device/Build/Products/Release-iphoneos/App.app/PlugIns/HatirlaticilarimWidgetExtension.appex/Info.plist
 
+      - name: Yetkileri gömmek için ad-hoc imzala
+        # Sideloadly/AltStore uygulamayı kendi Apple ID'nle yeniden imzalarken mevcut
+        # yetkileri (App Group) korur; imzasız pakette bu bilgi olmadığı için widget
+        # uygulama verisini okuyamazdı.
+        working-directory: ${{ matrix.dizin }}/ios/App
+        env:
+          APP_YETKI: ${{ matrix.yetki }}
+        run: |
+          APP=build/device/Build/Products/Release-iphoneos/App.app
+          for fw in "$APP"/Frameworks/*.framework "$APP"/Frameworks/*.dylib; do
+            [ -e "$fw" ] && codesign --force --sign - --timestamp=none "$fw"
+          done
+          for appex in "$APP"/PlugIns/*.appex; do
+            [ -e "$appex" ] || continue
+            ad=$(basename "$appex" .appex); ad=${ad%Extension}
+            codesign --force --sign - --timestamp=none --entitlements "$ad/$ad.entitlements" "$appex"
+          done
+          if [ -n "$APP_YETKI" ]; then
+            codesign --force --sign - --timestamp=none --entitlements "$APP_YETKI" "$APP"
+          else
+            codesign --force --sign - --timestamp=none "$APP"
+          fi
+          codesign --verify --deep --strict "$APP"
+          for b in "$APP" "$APP"/PlugIns/*.appex; do
+            [ -e "$b" ] || continue
+            echo "== $b"; codesign -d --entitlements - "$b" 2>/dev/null || true
+          done
+          if [ -n "$APP_YETKI" ]; then
+            codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "group.com.hatirlaticilarim.app" \
+              || { echo "::error::App Group yetkisi pakete gömülmedi"; exit 1; }
+          fi
+
       - name: Derlenen uygulamaları paketle
         working-directory: ${{ matrix.dizin }}/ios/App
         run: |
           CIKTI="$GITHUB_WORKSPACE/ciktilar"
           mkdir -p "$CIKTI/Payload"
           cp -R build/device/Build/Products/Release-iphoneos/App.app "$CIKTI/Payload/"
-          (cd "$CIKTI" && zip -qry ${{ matrix.ad }}-imzasiz.ipa Payload && rm -rf Payload)
+          (cd "$CIKTI" && zip -qry ${{ matrix.ad }}.ipa Payload && rm -rf Payload)
           (cd build/simulator/Build/Products/Debug-iphonesimulator && zip -qry "$CIKTI/${{ matrix.ad }}-simulator.app.zip" App.app)
           ls -la "$CIKTI"
 
@@ -128,145 +151,3 @@ jobs:
           name: ${{ matrix.kimlik }}-ios-${{ github.run_number }}
           path: ciktilar/
           retention-days: 14
-
-  testflight:
-    name: TestFlight - ${{ matrix.ad }}
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.testflight)
-    runs-on: macos-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - kimlik: hatirlatici
-            ad: Hatirlaticilarim
-            dizin: .
-            etiket: refs/tags/v
-          - kimlik: ceviri
-            ad: Cevirilerim
-            dizin: ceviri
-            etiket: refs/tags/ceviri-v
-    env:
-      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      ASC_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      SIGNING_CERT_BASE64: ${{ secrets.IOS_SIGNING_CERTIFICATE_BASE64 }}
-      SIGNING_CERT_PASSWORD: ${{ secrets.IOS_SIGNING_CERTIFICATE_PASSWORD }}
-
-    steps:
-      - name: Bu uygulamanın yüklenip yüklenmeyeceğini ve gizli anahtarları denetle
-        id: gizli
-        env:
-          SECILEN: ${{ inputs.uygulama }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            if [ "$SECILEN" != "hepsi" ] && [ "$SECILEN" != "${{ matrix.kimlik }}" ]; then
-              echo "${{ matrix.ad }} seçilmedi, atlanıyor."; echo "hazir=false" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-          elif [[ "$GITHUB_REF" != ${{ matrix.etiket }}* ]]; then
-            echo "Etiket ${{ matrix.ad }} için değil, atlanıyor."; echo "hazir=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          eksik=""
-          for ad in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_BASE64 APPLE_TEAM_ID; do
-            [ -n "${!ad}" ] || eksik="$eksik $ad"
-          done
-          if [ -n "$eksik" ]; then
-            echo "::warning::TestFlight atlandı. Eksik GitHub Secrets:$eksik (ayrıntı: APP-STORE-HAZIRLIK.md)"
-            echo "hazir=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "hazir=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Depoyu klonla
-        if: steps.gizli.outputs.hazir == 'true'
-        uses: actions/checkout@v4
-
-      - name: Node.js kur
-        if: steps.gizli.outputs.hazir == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Web uygulamasını derle, eşitle ve pod'ları kur
-        if: steps.gizli.outputs.hazir == 'true'
-        working-directory: ${{ matrix.dizin }}
-        run: |
-          npm install
-          npm run ios:sync
-          (cd ios/App && pod install)
-
-      - name: App Store Connect API anahtarını yaz
-        if: steps.gizli.outputs.hazir == 'true'
-        run: |
-          mkdir -p "$RUNNER_TEMP/asc"
-          echo "$ASC_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8"
-          echo "ASC_KEY_PATH=$RUNNER_TEMP/asc/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
-
-      - name: İmza sertifikasını geçici anahtarlığa al (isteğe bağlı)
-        if: steps.gizli.outputs.hazir == 'true' && env.SIGNING_CERT_BASE64 != ''
-        run: |
-          KEYCHAIN="$RUNNER_TEMP/imza.keychain-db"
-          KEYCHAIN_PW="$(uuidgen)"
-          echo "$SIGNING_CERT_BASE64" | base64 --decode > "$RUNNER_TEMP/imza.p12"
-          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/imza.p12" -P "$SIGNING_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          rm -f "$RUNNER_TEMP/imza.p12"
-
-      - name: Arşivle (otomatik imzalama)
-        if: steps.gizli.outputs.hazir == 'true'
-        working-directory: ${{ matrix.dizin }}/ios/App
-        run: |
-          set -o pipefail
-          xcodebuild -workspace "App.xcworkspace" \
-                     -scheme "App" \
-                     -configuration Release \
-                     -destination 'generic/platform=iOS' \
-                     -archivePath "$RUNNER_TEMP/${{ matrix.ad }}.xcarchive" \
-                     -allowProvisioningUpdates \
-                     -authenticationKeyPath "$ASC_KEY_PATH" \
-                     -authenticationKeyID "$ASC_KEY_ID" \
-                     -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-                     DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-                     CODE_SIGN_STYLE=Automatic \
-                     CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-                     archive
-
-      - name: TestFlight'a yükle
-        if: steps.gizli.outputs.hazir == 'true'
-        run: |
-          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
-            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-            <key>uploadSymbols</key><true/>
-          </dict>
-          </plist>
-          PLIST
-          set -o pipefail
-          xcodebuild -exportArchive \
-                     -archivePath "$RUNNER_TEMP/${{ matrix.ad }}.xcarchive" \
-                     -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-                     -exportPath "$RUNNER_TEMP/export" \
-                     -allowProvisioningUpdates \
-                     -authenticationKeyPath "$ASC_KEY_PATH" \
-                     -authenticationKeyID "$ASC_KEY_ID" \
-                     -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-          echo "Derleme numarası ${{ github.run_number }} App Store Connect'e yüklendi; işlenince TestFlight'ta görünür."
-
-      - name: Anahtarları temizle
-        if: always()
-        run: |
-          rm -rf "$RUNNER_TEMP/asc"
-          security delete-keychain "$RUNNER_TEMP/imza.keychain-db" 2>/dev/null || true

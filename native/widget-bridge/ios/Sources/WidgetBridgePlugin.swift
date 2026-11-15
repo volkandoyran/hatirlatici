@@ -11,7 +11,11 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "syncReminders", returnType: CAPPluginReturnPromise)
     ]
 
-    private let appGroupIdentifier = "group.com.hatirlaticilarim.app"
+    /// AltStore gibi yan yükleme araçları App Group kimliğini kendi hesabına göre
+    /// değiştirip Info.plist'teki `ALTAppGroups` anahtarına yazar; varsa o kullanılır.
+    private let appGroupIdentifier: String =
+        (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?.first
+        ?? "group.com.hatirlaticilarim.app"
     private let remindersKey = "widget-reminders-v1"
 
     @objc public func syncReminders(_ call: CAPPluginCall) {

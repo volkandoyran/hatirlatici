@@ -1,7 +1,20 @@
 import SwiftUI
 import WidgetKit
 
-private let widgetAppGroupIdentifier = "group.com.hatirlaticilarim.app"
+/// AltStore gibi yan yükleme araçları App Group kimliğini değiştirip `ALTAppGroups`
+/// anahtarına yazar. Önce uzantının, sonra onu içeren uygulamanın Info.plist'ine bakılır.
+private let widgetAppGroupIdentifier: String = {
+    let anahtar = "ALTAppGroups"
+    if let gruplar = Bundle.main.object(forInfoDictionaryKey: anahtar) as? [String], let ilk = gruplar.first {
+        return ilk
+    }
+    let uygulamaURL = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
+    if let uygulama = Bundle(url: uygulamaURL),
+       let gruplar = uygulama.object(forInfoDictionaryKey: anahtar) as? [String], let ilk = gruplar.first {
+        return ilk
+    }
+    return "group.com.hatirlaticilarim.app"
+}()
 private let widgetRemindersKey = "widget-reminders-v1"
 
 // Ana uygulamadan gelen widget görünümünde gereken sınırlı veri modeli.

@@ -52,10 +52,8 @@ npm run ios:open           # Xcode'da açar
 ```
 
 Depodaki `.github/workflows/ios-build.yml` bu uygulamayı da her push'ta GitHub'ın macOS
-makinesinde test edip cihaz ve simülatör için derler. `ceviri-v1.0.0` gibi bir etiket
-push edildiğinde veya Actions'ta elle başlatılıp *TestFlight* seçildiğinde imzalı derleme
-TestFlight'a yüklenir (gerekli GitHub Secrets için kökteki `APP-STORE-HAZIRLIK.md`'ye bakın;
-App Store Connect'te `com.cevirilerim.app` kaydı oluşturulmuş olmalıdır).
+makinesinde test edip cihaz ve simülatör için derler. App Store olmadan kendi telefonuna
+kurmak için kökteki `TELEFONA-KURULUM.md`'ye bak.
 
 `capacitor.config.json` içinde `CapacitorHttp` etkindir. Böylece iOS kabuğundaki
 çeviri istekleri tarayıcı CORS kısıtına takılmadan yerel HTTP ile gönderilir.
