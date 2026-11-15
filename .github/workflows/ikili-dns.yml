@@ -1,0 +1,79 @@
+name: İkili DNS iOS Build
+
+on:
+  push:
+    branches: [ "main", "claude/**" ]
+    paths: [ "ikili-dns/**", ".github/workflows/ikili-dns.yml" ]
+  pull_request:
+    branches: [ "main" ]
+    paths: [ "ikili-dns/**", ".github/workflows/ikili-dns.yml" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ikili-dns-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: iOS derlemesi - IkiliDNS
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ikili-dns
+
+    steps:
+      - name: Depoyu klonla
+        uses: actions/checkout@v5
+
+      - name: XcodeGen kur ve Xcode projesini oluştur
+        run: |
+          brew install xcodegen
+          xcodebuild -version
+          xcodegen generate
+
+      - name: Cihaz için imzasız derle (iphoneos)
+        run: |
+          set -o pipefail
+          xcodebuild -project IkiliDNS.xcodeproj \
+                     -scheme IkiliDNS \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build/device \
+                     CODE_SIGNING_ALLOWED=NO \
+                     clean build
+
+      - name: DNS uzantısının pakete gömüldüğünü doğrula
+        run: |
+          APPEX=build/device/Build/Products/Release-iphoneos/IkiliDNS.app/PlugIns/DNSTunnel.appex
+          test -f "$APPEX/Info.plist" || { echo "::error::DNSTunnel uzantısı pakette yok"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$APPEX/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPrincipalClass" "$APPEX/Info.plist"
+
+      - name: Yetkileri gömmek için ad-hoc imzala
+        # Sideloadly yeniden imzalarken paketteki yetkileri (Network Extension) okur.
+        run: |
+          APP=build/device/Build/Products/Release-iphoneos/IkiliDNS.app
+          codesign --force --sign - --timestamp=none --entitlements DNSTunnel/DNSTunnel.entitlements "$APP/PlugIns/DNSTunnel.appex"
+          codesign --force --sign - --timestamp=none --entitlements App/IkiliDNS.entitlements "$APP"
+          codesign --verify --deep --strict "$APP"
+          for b in "$APP" "$APP/PlugIns/DNSTunnel.appex"; do
+            codesign -d --entitlements - "$b" 2>/dev/null | grep -q "packet-tunnel-provider" \
+              || { echo "::error::$b içinde Network Extension yetkisi yok"; exit 1; }
+          done
+
+      - name: .ipa olarak paketle
+        run: |
+          CIKTI="$GITHUB_WORKSPACE/ciktilar"
+          mkdir -p "$CIKTI/Payload"
+          cp -R build/device/Build/Products/Release-iphoneos/IkiliDNS.app "$CIKTI/Payload/"
+          (cd "$CIKTI" && zip -qry IkiliDNS.ipa Payload && rm -rf Payload)
+          ls -la "$CIKTI"
+
+      - name: Çıktıyı yükle
+        uses: actions/upload-artifact@v5
+        with:
+          name: ikili-dns-ios-${{ github.run_number }}
+          path: ciktilar/
+          retention-days: 14

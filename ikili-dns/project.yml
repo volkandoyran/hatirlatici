@@ -1,0 +1,56 @@
+name: IkiliDNS
+options:
+  bundleIdPrefix: com.ikilidns
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    # İmzalama GitHub Actions'ta kapalı; telefona kurarken Sideloadly yeniden imzalar
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  IkiliDNS:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources: [App, Shared]
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: "İkili DNS"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    entitlements:
+      path: App/IkiliDNS.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+    settings:
+      base:
+        # Uzantının kimliği bunun sonuna ".tunnel" eklenerek bulunur
+        PRODUCT_BUNDLE_IDENTIFIER: com.ikilidns.app
+    dependencies:
+      - target: DNSTunnel
+      - sdk: NetworkExtension.framework
+  DNSTunnel:
+    type: app-extension
+    platform: iOS
+    sources: [DNSTunnel, Shared]
+    info:
+      path: DNSTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: DNSTunnel
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
+    entitlements:
+      path: DNSTunnel/DNSTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ikilidns.app.tunnel
+    dependencies:
+      - sdk: NetworkExtension.framework
