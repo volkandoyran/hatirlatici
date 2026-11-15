@@ -1,0 +1,76 @@
+name: Yapay zekâ özellik önerileri
+
+# Ücretsiz yapay zekâ servislerine (GitHub Models ve Pollinations) aynı soruyu sorar,
+# yanıtları iş özetine ve indirilebilir çıktıya yazar. Gönderilen tek veri .github/ai/istem.md'dir.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "claude/**" ]
+    paths: [ ".github/ai/istem.md" ]
+
+permissions:
+  contents: read
+  models: read
+
+jobs:
+  sor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Modellere sor
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          istem = open('.github/ai/istem.md', encoding='utf-8').read()
+          tok = os.environ['GITHUB_TOKEN']
+
+          def istek(url, govde=None, basliklar=None, zaman=120):
+              veri = json.dumps(govde).encode() if govde is not None else None
+              req = urllib.request.Request(url, data=veri, headers=basliklar or {}, method='POST' if veri else 'GET')
+              with urllib.request.urlopen(req, timeout=zaman) as r:
+                  return r.read().decode('utf-8', 'replace')
+
+          gh = {'Authorization': f'Bearer {tok}', 'Accept': 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'}
+          sonuc = []
+          # Farklı yayıncılardan sohbet modelleri; bulunmayan model atlanır.
+          secilen = ['openai/gpt-4.1', 'meta/Llama-4-Maverick-17B-128E-Instruct-FP8',
+                     'mistral-ai/mistral-medium-2505', 'deepseek/DeepSeek-V3-0324',
+                     'xai/grok-3-mini', 'microsoft/Phi-4']
+          for model in secilen:
+              try:
+                  yanit = json.loads(istek('https://models.github.ai/inference/chat/completions',
+                      {'model': model, 'messages': [{'role': 'user', 'content': istem}], 'max_tokens': 1800}, gh))
+                  sonuc.append((f'GitHub Models · {model}', yanit['choices'][0]['message']['content']))
+              except urllib.error.HTTPError as e:
+                  print(model, 'HATA', e.code, e.read()[:300])
+              except Exception as e:
+                  print(model, 'HATA', e)
+
+          try:
+              metin = istek('https://text.pollinations.ai/openai',
+                  {'model': 'openai', 'messages': [{'role': 'user', 'content': istem}]},
+                  {'Content-Type': 'application/json'})
+              try:
+                  metin = json.loads(metin)['choices'][0]['message']['content']
+              except Exception:
+                  pass
+              sonuc.append(('Pollinations · openai', metin))
+          except Exception as e:
+              sonuc.append(('Pollinations · openai', f'HATA: {e}'))
+
+          rapor = '# Yapay zekâ özellik önerileri\n\n' + '\n\n'.join(f'## {a}\n\n{y}' for a, y in sonuc)
+          os.makedirs('cikti', exist_ok=True)
+          open('cikti/oneriler.md', 'w', encoding='utf-8').write(rapor)
+          open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(rapor)
+          print(rapor)
+          PY
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ai-oneriler-${{ github.run_number }}
+          path: cikti/oneriler.md

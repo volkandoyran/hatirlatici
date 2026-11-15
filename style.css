@@ -909,9 +909,14 @@ textarea {
 }
 
 @media (max-width: 560px) {
-  .two-columns,
-  .stats {
+  .two-columns {
     grid-template-columns: 1fr;
+  }
+
+  /* Dört sayaç telefonda 2×2 ızgarada durur; tek sütun neredeyse bir ekranı kaplıyordu. */
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .toolbar,

@@ -1,5 +1,7 @@
 const STORAGE_KEY = 'reminder-app-state-v1';
-const THEME_STORAGE_KEY = 'reminder-theme';
+const THEME_STORAGE_KEY = 'reminder-theme-v2';
+// Eski sürüm temayı her açılışta 'light' olarak kaydettiği için yalnızca 'dark' gerçek bir seçimdir.
+const LEGACY_THEME_STORAGE_KEY = 'reminder-theme';
 const ALARM_STORAGE_KEY = 'reminder-alarm-audio-v1';
 const ALARM_FILENAME_KEY = 'reminder-alarm-file-name-v1';
 const ALARM_SETTINGS_KEY = 'reminder-alarm-settings-v1';
@@ -62,6 +64,8 @@ const permissionConsentBtn = document.getElementById('permission-consent-btn');
 const NATIVE_SYNC_DELAY_MS = 400;
 const VALID_RECURRENCES = new Set(['none', 'daily', 'weekdays', 'weekly', 'monthly']);
 const VALID_PRIORITIES = new Set(['normal', 'important', 'urgent']);
+// Widget zaman çizelgesi için yeterli; App Group'a gereğinden fazla kayıt yazılmaz.
+const WIDGET_REMINDER_LIMIT = 40;
 
 // localStorage gizli sekmede veya kota dolduğunda hata fırlatabilir; uygulama yine de açılmalı.
 function readStorage(key) {
@@ -123,7 +127,10 @@ function setDefaultFormDate() {
 
 let activeFilter = 'all';
 let editingReminderId = null;
-let customAlarmData = readStorage(ALARM_STORAGE_KEY) || '';
+// Yalnızca ses dosyasından üretilmiş data: adresi kabul edilir; başka türlü bir değer
+// (bozuk ya da elle değiştirilmiş depo) Audio kaynağı olarak kullanılmaz.
+const isAudioDataUrl = (value) => typeof value === 'string' && /^data:audio\/[\w.+-]+;base64,/.test(value);
+let customAlarmData = isAudioDataUrl(readStorage(ALARM_STORAGE_KEY)) ? readStorage(ALARM_STORAGE_KEY) : '';
 let activeAlarm = null;
 let reminders = loadReminders();
 let nativeSyncTimer = null;
@@ -638,12 +645,40 @@ reminderList.addEventListener('click', (event) => {
   }
 });
 
-function applyTheme(theme) {
+const systemDarkQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+
+// Kullanıcı elle tema seçmediyse telefonun açık/koyu ayarı izlenir.
+function getPreferredTheme() {
+  const legacy = readStorage(LEGACY_THEME_STORAGE_KEY);
+  if (legacy !== null) {
+    if (legacy === 'dark' && !readStorage(THEME_STORAGE_KEY)) {
+      writeStorage(THEME_STORAGE_KEY, 'dark');
+    }
+    removeStorage(LEGACY_THEME_STORAGE_KEY);
+  }
+  const saved = readStorage(THEME_STORAGE_KEY);
+  if (saved === 'dark' || saved === 'light') {
+    return saved;
+  }
+  return systemDarkQuery?.matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme, { persist = false } = {}) {
   const isDark = theme === 'dark';
   document.body.classList.toggle('dark-theme', isDark);
   themeToggleBtn.textContent = isDark ? 'Açık temayı aç' : 'Koyu temayı aç';
-  writeStorage(THEME_STORAGE_KEY, theme);
+  // iOS durum çubuğu ve tarayıcı çubuğu da temaya uysun.
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark ? '#111827' : '#4f46e5');
+  if (persist) {
+    writeStorage(THEME_STORAGE_KEY, theme);
+  }
 }
+
+systemDarkQuery?.addEventListener?.('change', () => {
+  if (!readStorage(THEME_STORAGE_KEY)) {
+    applyTheme(getPreferredTheme());
+  }
+});
 
 function render() {
   renderReminders();
@@ -745,15 +780,16 @@ async function synchronizeNativeWidget() {
   }
 
   const widgetBridge = await getNativeWidgetBridge();
-  // Başlık ve tarih App Group'a kopyalanır; kilit ekranında hatırlatma başlığı görünür.
-  await widgetBridge.syncReminders({
-    reminders: reminders.map(({ id, title, dueAt, completed }) => ({
-      id,
-      title,
-      dueAt,
-      completed,
-    })),
-  });
+  // Widget yalnızca bugünden itibaren bekleyen işleri gösterir; tamamlanmış ve geçmiş
+  // günlerin kayıtları App Group'a kopyalanmaz (daha az veri, kilit ekranında gereksiz başlık yok).
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const widgetReminders = reminders
+    .filter((item) => !item.completed && new Date(item.dueAt) >= startOfToday)
+    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
+    .slice(0, WIDGET_REMINDER_LIMIT)
+    .map(({ id, title, dueAt, priority }) => ({ id, title, dueAt, priority, completed: false }));
+  await widgetBridge.syncReminders({ reminders: widgetReminders });
 }
 
 function getNativeNotificationId(reminderId, minutesBefore) {
@@ -902,7 +938,7 @@ function handleAlarmFileChange() {
 
   const reader = new FileReader();
   reader.addEventListener('load', () => {
-    if (typeof reader.result !== 'string') {
+    if (!isAudioDataUrl(reader.result)) {
       alarmStatus.textContent = 'Ses dosyası okunamadı.';
       return;
     }
@@ -1465,12 +1501,12 @@ reminderForm.addEventListener('submit', handleFormSubmit);
 notifyBtn.addEventListener('click', requestNotificationPermission);
 themeToggleBtn.addEventListener('click', () => {
   const nextTheme = document.body.classList.contains('dark-theme') ? 'light' : 'dark';
-  applyTheme(nextTheme);
+  applyTheme(nextTheme, { persist: true });
 });
 
 function initializeApp() {
   // Tema ilk çizimden önce uygulanır; açık temanın bir an görünüp kaybolması önlenir.
-  applyTheme(readStorage(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light');
+  applyTheme(getPreferredTheme());
   loadAlarmSettings();
   updateAlarmControls();
 
